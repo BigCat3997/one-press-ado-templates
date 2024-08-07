@@ -11,16 +11,17 @@ parameters:
   - name: dependencies
     type: stepList
     default:
+      - checkout: self
       - checkout: one-press-resources
       - checkout: one-press-functions
 
-  - name: resourcesPath
+  - name: resourcesWorkingDirectoryPath
     type: string
-    default: "one-press-resources/resources"
+    default: "$(System.DefaultWorkingDirectory)/one-press-resources/resources"
 
   - name: dockerWorkingDirectoryPath
     type: string
-    default: "one-press-resources/resources/docker/dockerfiles"
+    default: "$(System.DefaultWorkingDirectory)/one-press-resources/resources/docker/dockerfiles"
 
   - name: functionsWorkingDirectoryPath
     type: string
@@ -150,7 +151,7 @@ parameters:
 
   - name: selfPath
     type: string
-    default: $(System.TeamProject)
+    default: $(System.DefaultWorkingDirectory)/$(System.TeamProject)
 
   - name: npmEnvBuildPath
     displayName: Npm env folder to build source
@@ -440,7 +441,7 @@ stages:
               COMPILE_PLATFORM_SCRIPT_PATH: "${{ parameters.functionsWorkingDirectoryPath }}/${{ parameters.functions.compilePlatform }}"
               NPM_BUILD_WORKING_DIRECTORY_PATH: $(Flow.TargetBuildAppPath)
               NPM_BUILD_OUTPUT_PATH: $(Flow.TargetBuildOutputPath)
-              NPM_ENV_FILE_PATH: ${{ parameters.selfPath }}/${{ parameters.npmEnvBuildPath }}/${{ parameters.npmEnvFilePrefix }}$(ENV_NAME)
+              NPM_ENV_FILE_PATH: ${{ parameters.selfPath }}/${{ parameters.npmEnvBuildPath }}/${{ parameters.npmEnvFilePrefix }}$(Flow.EnvName)
             displayName: "Build: Compile platform"
 
           - bash: |
@@ -467,7 +468,7 @@ stages:
               DOCKER_SERVER_URI: ${{ parameters.dockerServerUri }}
               DOCKER_SERVER_USERNAME: ${{ parameters.dockerServerUsername }}
               DOCKER_SERVER_PASSWORD: ${{ parameters.dockerServerPassword }}
-              DOCKER_RESOURCE_PREFIX_PATH: "$(System.DefaultWorkingDirectory)/${{ parameters.dockerWorkingDirectoryPath }}"
+              DOCKER_RESOURCE_PREFIX_PATH: "${{ parameters.dockerWorkingDirectoryPath }}"
               DOCKER_RESOURCE_FOLDER: "${{ parameters.dockerfilePath }}/."
               DOCKERS_ARGS_JSON: "${{ convertToJson(parameters.containerArgs) }}"
               DOCKER_IMAGE_TAG_TARGET_ENV: $(Flow.EnvName)
