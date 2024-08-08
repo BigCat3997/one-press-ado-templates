@@ -1,0 +1,217 @@
+parameters:
+  - name: runningAgent
+    displayName: Pick agent to run
+    type: string
+    default: azp-agent-ubuntu-docker
+    values:
+      - ubuntu-latest
+      - azp-agent-ubuntu-docker
+      - azp-agent-debian-docker
+
+  - name: dependencies
+    type: stepList
+    default:
+      - checkout: self
+      - checkout: one-press-functions
+
+  - name: pythonVenvPath
+    type: string
+    default: "/data/python-venv/one-press-functions"
+
+  - name: infrastructureVarVaultServiceConnection
+    displayName: Name of service connection connect to base infrastructure vault
+    type: string
+    default: $(Flow.BaseInfrastructureVarVaultServiceConnection)-$(System.TeamProject)
+
+  - name: infrastructureVarsVaultName
+    displayName: Uri of docker
+    type: string
+    default: $(Flow.InfrastructureVarsVaultName)
+
+  - name: requiredInfrastructureVars
+    displayName: Uri of docker
+    type: object
+    default: ""
+
+  - name: projectVarVaultServiceConnection
+    displayName: Name of service connection connect to base project  vault
+    type: string
+    default: $(Flow.ProjectVarsVaultNameServiceConnection)
+
+  - name: projectVarsVaultName
+    displayName: Uri of docker
+    type: string
+    default: $(Flow.ProjectVarsVaultName)
+
+  - name: requiredProjectVars
+    displayName: Uri of docker
+    type: object
+    default: ""
+
+  - name: functionsWorkingDirectoryPath
+    type: string
+    default: one-press-functions/functions
+
+  - name: functions
+    type: object
+    default:
+      initializeStages: initialize_stages_ado.py
+      helmUpgrade: helm_upgrade.py
+
+  - name: targetProjectPath
+    type: string
+    default: $(System.DefaultWorkingDirectory)/$(Build.Repository.Name)
+
+  - name: appResource
+    type: string
+    default: resources/app
+
+  - name: k8sResource
+    type: string
+    default: resources/k8s
+
+  - name: environments
+    type: object
+    default:
+      - DEV
+      - UAT
+
+  - name: targetProject
+    type: string
+    default: $(System.TeamProject)
+
+  - name: targetProjectPipeline
+    type: string
+    default: ""
+
+  - name: targetProjectResource
+    type: string
+
+  - name: buildVersionToDownload
+    type: string
+    default: "latest"
+
+  - name: artifactName
+    type: string
+    default: "bootstrap"
+
+  - name: helmChartName
+    type: string
+    default: "orchestration-chart"
+
+  - name: helmChartVersion
+    type: string
+    default: "0.1.0"
+
+  - name: publishFileName
+    displayName: Name of artifact.
+    type: string
+    default: "metadata.json"
+
+  - name: requiredProjectConfigurationVars
+    displayName: Name of artifact.
+    type: object
+    default: ""
+
+stages:
+  - ${{ each env in parameters.environments }}:
+      - stage: ${{ env }}
+        jobs:
+          - deployment:
+            displayName: Deploy ${{ env }}
+            workspace:
+              clean: all
+            pool:
+              ${{ if eq(parameters.runningAgent, 'ubuntu-latest') }}:
+                vmImage: ${{ parameters.runningAgent }}
+              ${{ if eq(parameters.runningAgent, 'azp-agent-ubuntu-docker') }}:
+                name: ${{ parameters.runningAgent }}
+              ${{ if eq(parameters.runningAgent, 'azp-agent-debian-docker') }}:
+                name: ${{ parameters.runningAgent }}
+            environment:
+              name: "K8S_${{ env }}"
+            strategy:
+              runOnce:
+                deploy:
+                  steps:
+                    - ${{ parameters.dependencies }}
+
+                    - task: AzureKeyVault@2
+                      inputs:
+                        azureSubscription: ${{ parameters.infrastructureVarVaultServiceConnection }}
+                        KeyVaultName: ${{ parameters.infrastructureVarsVaultName }}
+                        SecretsFilter: ${{ join(',',parameters.requiredInfrastructureVars) }}
+                        RunAsPreJob: true
+                      displayName: "Bootstrap: Fetch vars from vault"
+
+                    - task: AzureKeyVault@2
+                      inputs:
+                        azureSubscription: ${{ parameters.projectVarVaultServiceConnection }}
+                        KeyVaultName: ${{ parameters.projectVarsVaultName }}
+                        SecretsFilter: ${{ join(',',parameters.requiredProjectVars) }}
+                        RunAsPreJob: true
+                      displayName: "Bootstrap: Fetch vars from vault"
+                      condition: ${{ ne(parameters.requiredProjectVars, '') }}
+
+                    - bash: |
+                        source ${PYTHON_VENV_PATH}/bin/activate
+                        python ./$SUIT_UP_SCRIPT_PATH \
+                          --stage-name $STAGE_NAME \
+                          --deployment-prefix-path $DEPLOYMENT_PREFIX_PATH
+                      env:
+                        PYTHON_VENV_PATH: ${{ parameters.pythonVenvPath }}
+                        SUIT_UP_SCRIPT_PATH: "${{ parameters.functionsWorkingDirectoryPath }}/${{ parameters.functions.initializeStages }}"
+                        STAGE_NAME: DEPLOYMENT
+                        DEPLOYMENT_PREFIX_PATH: $(System.DefaultWorkingDirectory)
+                      displayName: "Deployment: Set up"
+
+                    - task: DownloadPipelineArtifact@2
+                      inputs:
+                        buildType: "specific"
+                        project: "${{ parameters.targetProject }}"
+                        definition: "${{ parameters.targetProjectPipeline }}"
+                        buildVersionToDownload: "${{ parameters.buildVersionToDownload }}"
+                        artifactName: "${{ parameters.artifactName }}"
+                        pipelineId: "${{ parameters.buildVersionToDownload }}"
+                        targetPath: $(Flow.DeploymentSectionPath)
+                      displayName: "Deployment: Download pipeline artifact"
+
+                    - bash: |
+                        source ${PYTHON_VENV_PATH}/bin/activate
+                        python ./$HELM_UPGRADE_SCRIPT_PATH \
+                          --deployment-work-dir=$DEPLOYMENT_WORK_DIR \
+                          --publish-file-path=$PUBLISH_FILE_PATH \
+                          --environment=$ENVIRONMENT \
+                          --project-path=$TARGET_PROJECT_PATH \
+                          --project-name=$TARGET_PROJECT \
+                          --app-resources=$APP_RESOURCES \
+                          --k8s-resources=$K8S_RESOURCES \
+                          --kube-config-content=$KUBE_CONFIG_CONTENT \
+                          --helm-chart-name=$HELM_CHART_NAME \
+                          --helm-chart-version=$HELM_CHART_VERSION \
+                          --helm-server-uri=$HELM_SERVER_URI \
+                          --helm-server-username=$HELM_SERVER_USERNAME \
+                          --helm-server-password=$HELM_SERVER_PASSWORD
+                      env:
+                        PYTHON_VENV_PATH: ${{ parameters.pythonVenvPath }}
+                        HELM_UPGRADE_SCRIPT_PATH: ${{ parameters.functionsWorkingDirectoryPath }}/${{ parameters.functions.helmUpgrade }}
+                        DEPLOYMENT_WORK_DIR: $(Flow.DeploymentSectionPath)
+                        PUBLISH_FILE_PATH: $(Flow.DeploymentSectionPath)/${{ parameters.publishFileName }}
+                        ENVIRONMENT: ${{ env }}
+                        TARGET_PROJECT_PATH: ${{ parameters.targetProjectPath }}/pipelines/${{ parameters.targetProjectResource }}
+                        TARGET_PROJECT: ${{ parameters.targetProjectResource }}
+                        APP_RESOURCES: ${{ parameters.appResource }}
+                        K8S_RESOURCES: ${{ parameters.k8sResource }}
+                        HELM_CHART_NAME: ${{ parameters.helmChartName }}
+                        HELM_CHART_VERSION: ${{ parameters.helmChartVersion  }}
+                        HELM_SERVER_URI: $(SECRET-DOCKER-SERVER-URI)
+                        HELM_SERVER_USERNAME: $(SECRET-DOCKER-SERVER-USERNAME)
+                        HELM_SERVER_PASSWORD: $(SECRET-DOCKER-SERVER-PASSWORD)
+                        AWS_ACCESS_KEY_ID: $(SECRET-AWS-ACCESS-KEY-ID)
+                        AWS_DEFAULT_REGION: $(SECRET-AWS-DEFAULT-REGION)
+                        AWS_SECRET_ACCESS_KEY: $(SECRET-AWS-SECRET-ACCESS-KEY)
+                        KUBE_CONFIG_CONTENT: $(SECRET-EKS-KUBECONFIG-CONTENT-${{ env }})
+                        ${{ if ne(parameters.requiredProjectVars, '') }}:
+                          ${{ each env_p  in parameters.requiredProjectVars }}:
+                            ${{ env_p }}: "$(${{ env_p }})"
+                      displayName: "Deployment: Helm deploy"
