@@ -1,0 +1,478 @@
+parameters:
+  - name: runningAgent
+    displayName: Pick agent to run
+    type: string
+    default: azp-agent-ubuntu-docker
+    values:
+      - ubuntu-latest
+      - azp-agent-ubuntu-docker
+      - azp-agent-debian-docker
+
+  - name: dependencies
+    type: stepList
+    default:
+      - checkout: one-press-resources
+      - checkout: one-press-functions
+
+  - name: resourcesWorkingDirectoryPath
+    type: string
+    default: "$(System.DefaultWorkingDirectory)/one-press-resources/resources"
+
+  - name: dockerWorkingDirectoryPath
+    type: string
+    default: "$(System.DefaultWorkingDirectory)/one-press-resources/resources/docker/dockerfiles"
+
+  - name: functionsWorkingDirectoryPath
+    type: string
+    default: "one-press-functions/functions"
+
+  - name: functions
+    type: object
+    default:
+      initializeStages: initialize_stages_ado.py
+      gitFlow: git_flow_ado.py
+      overrideBuildNumber: override_build_number_ado.py
+      writeDiary: write_diary.py
+      compilePlatform: compile_platform.py
+      dockerBuild: docker_build.py
+
+  - name: pythonVenvPath
+    type: string
+    default: "/data/python-venv/one-press-functions"
+
+  - name: infrastructureVarVaultServiceConnection
+    displayName: Name of service connection connect to base infrastructure vault
+    type: string
+    default: $(Flow.BaseInfrastructureVarVaultServiceConnection)-$(System.TeamProject)
+
+  - name: infrastructureVarsVaultName
+    displayName: Uri of docker
+    type: string
+    default: $(Flow.InfrastructureVarsVaultName)
+
+  - name: requiredInfrastructureVars
+    displayName: Uri of docker
+    type: object
+    default:
+      bootstrapStage:
+        - SECRET-GIT-TOKEN
+        - SECRET-GIT-USER
+        - SECRET-DOCKER-SERVER-URI
+      buildStage:
+        - SECRET-DOCKER-SERVER-PASSWORD
+        - SECRET-DOCKER-SERVER-URI
+        - SECRET-DOCKER-SERVER-USERNAME
+        - SECRET-FEED-PASSWORD
+        - SECRET-FEED-NUGET-SERVER-URL
+        - SECRET-FEED-USERNAME
+
+  - name: appFolder
+    displayName: Name of app folder
+    type: string
+    default: "app_source"
+
+  - name: bootstrapSectionFolder
+    displayName: Name of Bootstrap section folder
+    type: string
+    default: "bootstrap_section"
+
+  - name: bootstrapArtifactName
+    displayName: Artifact's name of Bootstrap stage
+    type: string
+    default: "bootstrap"
+
+  - name: buildSectionFolder
+    displayName: Name of Build section folder
+    type: string
+    default: "build_section"
+
+  - name: buildAppFolder
+    displayName: Name of Build App folder
+    type: string
+    default: "build_app"
+
+  - name: buildDockerFolder
+    displayName: Name of Build Docker folder
+    type: string
+    default: "build_docker"
+
+  - name: targetBuildApp
+    displayName: Target to build app
+    type: string
+    default: ""
+
+  - name: targetBuildOutput
+    displayName: Target output of app
+    type: string
+    default: "."
+
+  - name: testSectionFolder
+    displayName: Name of Test section folder
+    type: string
+    default: "test_section"
+
+  - name: targetUnitTestApp
+    displayName: Target unit test to test app
+    type: string
+    default: ""
+
+  - name: targetUnitTestOutput
+    displayName: Target output of test
+    type: string
+    default: ""
+
+  - name: gitUrl
+    displayName: Git url
+    type: string
+
+  - name: isPrivateRepo
+    displayName: Is private repo
+    type: string
+
+  - name: gitBranch
+    displayName: Git branch
+    type: string
+
+  - name: gitUsername
+    displayName: Git username
+    type: string
+    default: $(SECRET-GIT-USER)
+
+  - name: gitToken
+    displayName: Git token
+    type: string
+    default: $(SECRET-GIT-TOKEN)
+
+  - name: publishFileName
+    displayName: Name of artifact.
+    type: string
+    default: "metadata.json"
+
+  - name: isUsePrivateRepo
+    displayName: Use the DotNet private repo
+    type: string
+    default: "true"
+
+  - name: dotnetNugetConfigPath
+    displayName: Path of Nuget.Config
+    type: string
+    default: nuget/config/NuGet.Config
+
+  - name: nugetServerUrl
+    displayName: Url of server
+    type: string
+    default: $(SECRET-FEED-NUGET-SERVER-URL)
+
+  - name: nugetServerUsername
+    displayName: Username of server
+    type: string
+    default: $(SECRET-FEED-USERNAME)
+
+  - name: nugetServerPassword
+    displayName: Password of server
+    type: string
+    default: $(SECRET-FEED-PASSWORD)
+
+  - name: dockerTagBaseOnEnv
+    displayName: Uri of docker
+    type: string
+    default: "false"
+
+  - name: containerRequiredEnvsPublic
+    displayName: Container required envs public
+    type: object
+    default:
+      - PROJECT_NAME
+      - GIT_URL
+      - PIPELINE_NAME
+      - BUILD_NUMBER
+
+  - name: containerRequiredEnvsPrivate
+    displayName: Container required envs private
+    type: object
+    default:
+      - PROJECT_NAME
+      - GIT_URL
+      - PIPELINE_NAME
+      - BUILD_NUMBER
+
+  - name: dockerfilePath
+    displayName: Dockerfile path
+    type: string
+
+  - name: dockerImageName
+    displayName: Docker image name
+    type: string
+
+  - name: dockerImageTag
+    displayName: Docker image tag
+    type: string
+    default: $(Build.BuildNumber)
+
+  - name: containerArgs
+    displayName: Args of Dockerfile
+    type: object
+    default: ""
+
+  - name: isPrivateHubRegistry
+    displayName: Push docker image to registry
+    type: string
+    default: "true"
+
+  - name: dockerServerUri
+    displayName: Uri of docker
+    type: string
+    default: $(SECRET-DOCKER-SERVER-URI)
+
+  - name: dockerServerUsername
+    displayName: Username of docker
+    type: string
+    default: $(SECRET-DOCKER-SERVER-USERNAME)
+
+  - name: dockerServerPassword
+    displayName: Password of docker
+    type: string
+    default: $(SECRET-DOCKER-SERVER-PASSWORD)
+
+  - name: pipelineName
+    displayName: Name of pipeline.
+    type: string
+    default: $(Build.DefinitionName)
+
+  - name: buildNumber
+    displayName: Build number of pipeline.
+    type: string
+    default: $(Build.BuildNumber)
+
+  - name: pythonRuntimeVersion
+    displayName: Build number of pipeline.
+    type: string
+    default: python3.10
+
+stages:
+  - stage: Bootstrap
+    jobs:
+      - job: PreparePackages
+        displayName: Prepare packages
+        workspace:
+          clean: all
+        pool:
+          ${{ if eq(parameters.runningAgent, 'ubuntu-latest') }}:
+            vmImage: ${{ parameters.runningAgent }}
+          ${{ if eq(parameters.runningAgent, 'azp-agent-ubuntu-docker') }}:
+            name: ${{ parameters.runningAgent }}
+          ${{ if eq(parameters.runningAgent, 'azp-agent-debian-docker') }}:
+            name: ${{ parameters.runningAgent }}
+        steps:
+          - ${{ parameters.dependencies }}
+
+          - task: AzureKeyVault@2
+            inputs:
+              azureSubscription: "${{ parameters.infrastructureVarVaultServiceConnection }}"
+              KeyVaultName: "${{ parameters.infrastructureVarsVaultName }}"
+              SecretsFilter: "${{ join(',',parameters.requiredInfrastructureVars.bootstrapStage) }}"
+              RunAsPreJob: true
+            displayName: "Bootstrap: Fetch vars from vault"
+
+          - bash: |
+              $PYTHON_RUNTIME_VERSION -m venv one-press-functions "${PYTHON_VENV_PATH}"
+              source "${PYTHON_VENV_PATH}/bin/activate"
+              python --version
+              pip install -r "${FLOW_WORKDIR}/requirements.txt"
+              pip list
+            env:
+              PYTHON_RUNTIME_VERSION: "${{ parameters.pythonRuntimeVersion }}"
+              PYTHON_VENV_PATH: "${{ parameters.pythonVenvPath }}"
+              FLOW_WORKDIR: "${{ parameters.functionsWorkingDirectoryPath }}"
+            displayName: "Bootstrap: Set up venv"
+
+          - bash: |
+              source "${PYTHON_VENV_PATH}/bin/activate"
+              python ./$SUIT_UP_SCRIPT_PATH \
+                --stage-name $STAGE_NAME \
+                --bootstrap-prefix-path $BOOTSTRAP_PREFIX_PATH
+            env:
+              PYTHON_VENV_PATH: "${{ parameters.pythonVenvPath }}"
+              SUIT_UP_SCRIPT_PATH: "${{ parameters.functionsWorkingDirectoryPath }}/${{ parameters.functions.initializeStages }}"
+              STAGE_NAME: BOOTSTRAP
+              BOOTSTRAP_PREFIX_PATH: $(System.DefaultWorkingDirectory)
+            displayName: "Bootstrap: Set up stage"
+
+          - bash: |
+              source "${PYTHON_VENV_PATH}/bin/activate"
+              python ./$GIT_FLOW_SCRIPT_PATH \
+                --app-source-prefix-path $APP_SOURCE_PREFIX_PATH \
+                --app-source $APP_SOURCE \
+                --git-url $GIT_URL \
+                --git-branch $GIT_BRANCH \
+                --is-private-repo $IS_PRIVATE_REPO \
+                --git-username $GIT_USERNAME \
+                --git-token $GIT_TOKEN \
+                --archive-path $ARCHIVE_PATH
+            env:
+              PYTHON_VENV_PATH: "${{ parameters.pythonVenvPath }}"
+              GIT_FLOW_SCRIPT_PATH: "${{ parameters.functionsWorkingDirectoryPath }}/${{ parameters.functions.gitFlow }}"
+              APP_SOURCE_PREFIX_PATH: $(Flow.BootstrapSectionPath)
+              APP_SOURCE: ${{ parameters.appFolder }}
+              GIT_URL: ${{ parameters.gitUrl }}
+              GIT_BRANCH: ${{ parameters.gitBranch }}
+              IS_PRIVATE_REPO: ${{ parameters.isPrivateRepo }}
+              GIT_USERNAME: ${{ parameters.gitUsername }}
+              GIT_TOKEN: ${{ parameters.gitToken }}
+              ARCHIVE_PATH: $(Build.ArtifactStagingDirectory)
+            displayName: "Bootstrap: Clone source"
+
+          - bash: |
+              source "${PYTHON_VENV_PATH}/bin/activate"
+              python ./$OVERRIDE_BUILD_NUMBER_SCRIPT_PATH \
+                -bn $BUILD_NUMBER \
+                -ci $COMMIT_ID \
+            env:
+              PYTHON_VENV_PATH: "${{ parameters.pythonVenvPath }}"
+              OVERRIDE_BUILD_NUMBER_SCRIPT_PATH: "${{ parameters.functionsWorkingDirectoryPath }}/${{ parameters.functions.overrideBuildNumber }}"
+              BUILD_NUMBER: $(Build.BuildNumber)
+              COMMIT_ID: $(Flow.GitShortCommitId)
+            displayName: "Bootstrap: Override build number"
+
+          - bash: |
+              source "${PYTHON_VENV_PATH}/bin/activate"
+              python ./$LOGGER_SCRIPT_PATH \
+                --publish-prefix-path=$PUBLISH_PREFIX_PATH \
+                --publish-file-name=$PUBLISH_FILE_NAME \
+                --git-url=$GIT_URL \
+                --git-commit-id=$GIT_COMMIT_ID \
+                --git-short-commit-id=$GIT_SHORT_COMMIT_ID \
+                --pipeline-name=$PIPELINE_NAME \
+                --build-number=$BUILD_NUMBER \
+                --docker-server-uri=$DOCKER_SERVER_URI \
+                --image-name=$DOCKER_IMAGE_NAME \
+                --image-tag=$DOCKER_IMAGE_TAG \
+                --is-image-tag-based-on-env=$DOCKER_TAG_BASE_ON_ENV \
+                --container-required-envs-public="${CONTAINER_REQUIRED_ENVS_PUBLIC}" \
+                --container-required-envs-private="${CONTAINER_REQUIRED_ENVS_PRIVATE}"
+            env:
+              PYTHON_VENV_PATH: "${{ parameters.pythonVenvPath }}"
+              LOGGER_SCRIPT_PATH: "${{ parameters.functionsWorkingDirectoryPath }}/${{ parameters.functions.writeDiary }}"
+              PUBLISH_PREFIX_PATH: "$(Build.ArtifactStagingDirectory)"
+              PUBLISH_FILE_NAME: ${{ parameters.publishFileName }}
+              GIT_URL: ${{ parameters.gitUrl }}
+              GIT_COMMIT_ID: $(Flow.GitCommitId)
+              GIT_SHORT_COMMIT_ID: $(Flow.GitShortCommitId)
+              DOCKER_SERVER_URI: ${{ parameters.dockerServerUri }}
+              DOCKER_IMAGE_NAME: ${{ parameters.dockerImageName }}
+              DOCKER_IMAGE_TAG: ${{ parameters.dockerImageTag }}
+              DOCKER_TAG_BASE_ON_ENV: ${{ parameters.dockerTagBaseOnEnv }}
+              CONTAINER_REQUIRED_ENVS_PUBLIC: ${{ convertToJson(parameters.containerRequiredEnvsPublic) }}
+              CONTAINER_REQUIRED_ENVS_PRIVATE: ${{ convertToJson(parameters.containerRequiredEnvsPrivate) }}
+              PIPELINE_NAME: $(Build.DefinitionName)
+              BUILD_NUMBER: ${{ parameters.buildNumber }}
+            displayName: "Bootstrap: Write diary"
+
+          - task: PublishBuildArtifacts@1
+            inputs:
+              pathtoPublish: $(Build.ArtifactStagingDirectory)
+              artifactName: ${{ parameters.bootstrapArtifactName }}
+            displayName: "Bootstrap: Publish artifacts"
+
+  - stage: Build
+    dependsOn: Bootstrap
+    jobs:
+      - job: BuildDockerImage
+        displayName: Build Docker image
+        workspace:
+          clean: all
+        pool:
+          ${{ if eq(parameters.runningAgent, 'ubuntu-latest') }}:
+            vmImage: ${{ parameters.runningAgent }}
+          ${{ if eq(parameters.runningAgent, 'azp-agent-ubuntu-docker') }}:
+            name: ${{ parameters.runningAgent }}
+          ${{ if eq(parameters.runningAgent, 'azp-agent-debian-docker') }}:
+            name: ${{ parameters.runningAgent }}
+        steps:
+          - ${{ parameters.dependencies }}
+
+          - task: AzureKeyVault@2
+            inputs:
+              azureSubscription: "${{ parameters.infrastructureVarVaultServiceConnection }}"
+              KeyVaultName: "${{ parameters.infrastructureVarsVaultName }}"
+              SecretsFilter: "${{ join(',',parameters.requiredInfrastructureVars.buildStage) }}"
+              RunAsPreJob: true
+            displayName: "Build: Fetch vars from vault"
+
+          - bash: |
+              source "${PYTHON_VENV_PATH}/bin/activate"
+              python ./$SUIT_UP_SCRIPT_PATH \
+                --stage-name $STAGE_NAME \
+                --build-prefix-path $BUILD_PREFIX_PATH \
+                --target-build-app $TARGET_BUILD_APP \
+                --target-build-output $TARGET_BUILD_OUTPUT
+            env:
+              PYTHON_VENV_PATH: "${{ parameters.pythonVenvPath }}"
+              SUIT_UP_SCRIPT_PATH: "${{ parameters.functionsWorkingDirectoryPath }}/${{ parameters.functions.initializeStages }}"
+              STAGE_NAME: BUILD
+              BUILD_PREFIX_PATH: "$(System.DefaultWorkingDirectory)"
+              TARGET_BUILD_APP: "${{ parameters.appFolder }}/${{ parameters.targetBuildApp }}"
+              TARGET_BUILD_OUTPUT: "${{ parameters.appFolder }}/${{ parameters.targetBuildOutput }}"
+            displayName: "Build: Set up stage"
+
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              buildType: "current"
+              itemPattern: "**"
+              targetPath: "$(Flow.BuildSectionPath)"
+            displayName: "Build: Download Bootstrap artifact"
+
+          - task: ExtractFiles@1
+            inputs:
+              archiveFilePatterns: "$(Flow.BuildSectionPath)/${{ parameters.bootstrapArtifactName }}/*.zip"
+              destinationFolder: "$(Flow.BuildAppPath)"
+              overwriteExistingFiles: true
+            displayName: "Build: Extract Bootstrap artifact"
+
+          - bash: |
+              source "${PYTHON_VENV_PATH}/bin/activate"
+              python ./$COMPILE_PLATFORM_SCRIPT_PATH \
+                --picked-platform=DOTNET \
+                --dotnet-build-work-dir-path="${DOTNET_BUILD_WORKING_DIRECTORY_PATH}" \
+                --dotnet-build-output-path="${DOTNET_BUILD_OUTPUT_PATH}" \
+                --is-use-private-repo=$IS_USE_PRIVATE_REPO \
+                --nuget-config-path="${DOTNET_NUGET_CONFIG_PATH}"
+            env:
+              PYTHON_VENV_PATH: "${{ parameters.pythonVenvPath }}"
+              COMPILE_PLATFORM_SCRIPT_PATH: "${{ parameters.functionsWorkingDirectoryPath }}/${{ parameters.functions.compilePlatform }}"
+              DOTNET_BUILD_WORKING_DIRECTORY_PATH: $(Flow.TargetBuildAppPath)
+              DOTNET_BUILD_OUTPUT_PATH: $(Flow.TargetBuildOutputPath)
+              IS_USE_PRIVATE_REPO: ${{ parameters.isUsePrivateRepo }}
+              DOTNET_NUGET_CONFIG_PATH: ${{ parameters.resourcesWorkingDirectoryPath }}/${{ parameters.dotnetNugetConfigPath }}
+              NUGET_SERVER_URL: ${{ parameters.nugetServerUrl }}
+              NUGET_SERVER_USERNAME: ${{ parameters.nugetServerUsername }}
+              NUGET_SERVER_PASSWORD: ${{ parameters.nugetServerPassword }}
+            displayName: "Build: Compile platform"
+
+          - bash: |
+              source "${PYTHON_VENV_PATH}/bin/activate"
+              python ./$DOCKER_BUILD_PYTHON_SCRIPT_PATH \
+                --publish-file-path=$PUBLISH_FILE_PATH \
+                --docker-resource-work-dir=$DOCKER_RESOURCE_PREFIX_PATH \
+                --docker-resource-content=$DOCKER_RESOURCE_FOLDER \
+                --target-build-output-path=$TARGET_BUILD_OUTPUT_PATH \
+                --target-build-path=$TARGET_BUILD_DOCKER_PATH \
+                --args-json="${DOCKERS_ARGS_JSON}" \
+                --is-private-registry=$DOCKER_IS_PRIVATE_REGISTRY \
+                --server-uri=$DOCKER_SERVER_URI \
+                --server-username=$DOCKER_SERVER_USERNAME \
+                --server-password=$DOCKER_SERVER_PASSWORD
+            env:
+              PYTHON_VENV_PATH: "${{ parameters.pythonVenvPath }}"
+              DOCKER_BUILD_PYTHON_SCRIPT_PATH: "${{ parameters.functionsWorkingDirectoryPath }}/${{ parameters.functions.dockerBuild }}"
+              PUBLISH_FILE_PATH: "$(Flow.BuildSectionPath)/${{ parameters.bootstrapArtifactName }}/${{ parameters.publishFileName }}"
+              TARGET_BUILD_OUTPUT_PATH: "$(Flow.TargetBuildOutputPath)"
+              TARGET_BUILD_DOCKER_PATH: "$(Flow.BuildDockerPath)"
+              DOCKER_IS_PRIVATE_REGISTRY: "true"
+              DOCKER_SERVER_URI: ${{ parameters.dockerServerUri }}
+              DOCKER_SERVER_USERNAME: ${{ parameters.dockerServerUsername }}
+              DOCKER_SERVER_PASSWORD: ${{ parameters.dockerServerPassword }}
+              DOCKER_RESOURCE_PREFIX_PATH: "${{ parameters.dockerWorkingDirectoryPath }}"
+              DOCKER_RESOURCE_FOLDER: "${{ parameters.dockerfilePath }}/."
+              DOCKERS_ARGS_JSON: "${{ convertToJson(parameters.containerArgs) }}"
+            displayName: "Build: Docker build"
