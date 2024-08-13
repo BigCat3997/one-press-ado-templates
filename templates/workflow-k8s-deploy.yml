@@ -36,7 +36,7 @@ parameters:
   - name: projectVarVaultServiceConnection
     displayName: Name of service connection connect to base project  vault
     type: string
-    default: $(Flow.ProjectVarsVaultNameServiceConnection)
+    default: $(Flow.ProjectVarsVaultNameServiceConnection)-$(System.TeamProject)
 
   - name: projectVarsVaultName
     displayName: Uri of docker
