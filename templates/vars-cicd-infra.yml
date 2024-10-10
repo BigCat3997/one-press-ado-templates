@@ -1,0 +1,19 @@
+parameters:
+  - name: project
+    displayName: Name of project containing service connection
+    type: string
+    default: "-$(System.TeamProject)"
+
+  - name: baseInfraConfigVaultServiceConnection
+    displayName: Name of base service connection connect to base infrastructure vault
+    type: string
+    default: <AZURE_VAULT_SERVICE_CONNECTION>
+
+  - name: infraConfigVaultName
+    displayName: Name of infrastructure vault
+    type: string
+    default: <AZURE_VAULT_NAME>
+
+variables:
+  FLOW_INFRA_CONFIG_VAULT_SERVICE_CONNECTION: ${{ parameters.baseInfraConfigVaultServiceConnection }}${{ parameters.project }}
+  FLOW_INFRA_CONFIG_VAULT_NAME: ${{ parameters.infraConfigVaultName }}
