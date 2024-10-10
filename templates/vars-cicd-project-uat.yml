@@ -1,0 +1,19 @@
+parameters:
+  - name: project
+    displayName: Name of project containing service connection
+    type: string
+    default: "-$(System.TeamProject)"
+
+  - name: baseProjectConfigVaultServiceConnection
+    displayName: Name of the service connection connect to project vault
+    type: string
+    default: <AZURE_VAULT_SERVICE_CONNECTION>
+
+  - name: projectConfigVaultName
+    displayName: Name of project vault
+    type: string
+    default: <AZURE_VAULT_NAME>
+
+variables:
+  FLOW_PROJECT_CONFIG_VAULT_SERVICE_CONNECTION: ${{ parameters.baseProjectConfigVaultServiceConnection }}${{ parameters.project }}
+  FLOW_PROJECT_CONFIG_VAULT_NAME: ${{ parameters.projectConfigVaultName }}
