@@ -7,12 +7,12 @@ parameters:
   - name: baseProjectConfigVaultServiceConnection
     displayName: Name of the service connection connect to project vault
     type: string
-    default: <AZURE_VAULT_SERVICE_CONNECTION>
+    default: ""
 
   - name: projectConfigVaultName
     displayName: Name of project vault
     type: string
-    default: <AZURE_VAULT_NAME>
+    default: ""
 
 variables:
   FLOW_PROJECT_CONFIG_VAULT_SERVICE_CONNECTION: ${{ parameters.baseProjectConfigVaultServiceConnection }}${{ parameters.project }}

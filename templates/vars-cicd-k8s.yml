@@ -7,12 +7,12 @@ parameters:
   - name: baseInfraConfigVaultServiceConnection
     displayName: Name of base service connection connect to base infrastructure vault
     type: string
-    default: <AZURE_VAULT_SERVICE_CONNECTION>
+    default: ""
 
   - name: infraConfigVaultName
     displayName: Name of infrastructure vault
     type: string
-    default: <AZURE_VAULT_NAME>
+    default: ""
 
 variables:
   FLOW_INFRA_CONFIG_VAULT_SERVICE_CONNECTION: ${{ parameters.baseInfraConfigVaultServiceConnection }}${{ parameters.project }}
