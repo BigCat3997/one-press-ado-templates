@@ -14,49 +14,47 @@ parameters:
       - checkout: self
       - checkout: one-press-functions
 
-  - name: pythonVenvPath
+  - name: condaBinPath
     type: string
-    default: "/data/python-venv/one-press-functions"
+    default: "/opt/miniconda3/bin"
 
-  - name: infrastructureVarVaultServiceConnection
-    displayName: Name of service connection connect to base infrastructure vault
+  - name: workspaceWorkDir
     type: string
-    default: $(Flow.BaseInfrastructureVarVaultServiceConnection)-$(System.TeamProject)
-
-  - name: infrastructureVarsVaultName
-    displayName: Uri of docker
-    type: string
-    default: $(Flow.InfrastructureVarsVaultName)
+    default: "$(Agent.BuildDirectory)/w"
 
   - name: requiredInfrastructureVars
     displayName: Uri of docker
     type: object
     default: ""
 
-  - name: projectVarVaultServiceConnection
-    displayName: Name of service connection connect to base project  vault
-    type: string
-    default: $(Flow.ProjectVarsVaultNameServiceConnection)-$(System.TeamProject)
-
-  - name: projectVarsVaultName
-    displayName: Uri of docker
-    type: string
-    default: $(Flow.ProjectVarsVaultName)
-
   - name: requiredProjectVars
     displayName: Uri of docker
     type: object
     default: ""
 
-  - name: functionsWorkingDirectoryPath
+  - name: functionsWorkDir
     type: string
-    default: one-press-functions/functions
+    default: "$(System.DefaultWorkingDirectory)/one-press-functions"
+
+  - name: functionsResources
+    type: string
+    default: "app/functions"
 
   - name: functions
     type: object
     default:
-      initializeStages: initialize_stages_ado.py
-      helmUpgrade: helm_upgrade.py
+      initializeStages: initialize_stages_ado_func.py
+      helmUpgrade: helm_upgrade_func.py
+
+  - name: pythonVenvPath
+    type: string
+    displayName: Virtual environment path for python
+    default: "/data/.conda/envs"
+
+  - name: functionsVenv
+    type: string
+    displayName: Name of functions venv
+    default: "one-press-functions"
 
   - name: targetProjectPath
     type: string
@@ -97,7 +95,7 @@ parameters:
 
   - name: helmChartName
     type: string
-    default: "orchestration-chart"
+    default: "one-press-chart"
 
   - name: helmChartVersion
     type: string
@@ -117,7 +115,7 @@ stages:
   - ${{ each env in parameters.environments }}:
       - stage: ${{ env }}
         jobs:
-          - deployment:
+          - deployment: Deploy_${{ env }}
             displayName: Deploy ${{ env }}
             workspace:
               clean: all
@@ -128,42 +126,53 @@ stages:
                 name: ${{ parameters.runningAgent }}
               ${{ if eq(parameters.runningAgent, 'azp-agent-debian-docker') }}:
                 name: ${{ parameters.runningAgent }}
+            variables:
+              - template: vars-cicd-k8s-${{ lower(env) }}.yml
+              - template: vars-cicd-k8s.yml
             environment:
               name: "K8S_${{ env }}"
             strategy:
               runOnce:
                 deploy:
                   steps:
+                    - download: none
+
                     - ${{ parameters.dependencies }}
 
                     - task: AzureKeyVault@2
                       inputs:
-                        azureSubscription: ${{ parameters.infrastructureVarVaultServiceConnection }}
-                        KeyVaultName: ${{ parameters.infrastructureVarsVaultName }}
+                        azureSubscription: ${{ variables.FLOW_INFRA_CONFIG_VAULT_SERVICE_CONNECTION }}
+                        KeyVaultName: ${{ variables.FLOW_INFRA_CONFIG_VAULT_NAME }}
                         SecretsFilter: ${{ join(',',parameters.requiredInfrastructureVars) }}
                         RunAsPreJob: true
                       displayName: "Bootstrap: Fetch vars from vault"
 
                     - task: AzureKeyVault@2
                       inputs:
-                        azureSubscription: ${{ parameters.projectVarVaultServiceConnection }}
-                        KeyVaultName: ${{ parameters.projectVarsVaultName }}
+                        azureSubscription: ${{ variables.FLOW_PROJECT_CONFIG_VAULT_SERVICE_CONNECTION }}
+                        KeyVaultName: ${{ variables.FLOW_PROJECT_CONFIG_VAULT_NAME }}
                         SecretsFilter: ${{ join(',',parameters.requiredProjectVars) }}
                         RunAsPreJob: true
                       displayName: "Bootstrap: Fetch vars from vault"
                       condition: ${{ ne(parameters.requiredProjectVars, '') }}
 
                     - bash: |
-                        source ${PYTHON_VENV_PATH}/bin/activate
-                        python ./$SUIT_UP_SCRIPT_PATH \
-                          --stage-name $STAGE_NAME \
-                          --deployment-prefix-path $DEPLOYMENT_PREFIX_PATH
+                        echo "##vso[task.setvariable variable=PATH;]${CONDA_BIN_PATH}:${PATH}"
+                        echo "##vso[task.setvariable variable=PYTHONPATH;]${FUNCTIONS_WORK_DIR}:${PYTHONPATH}"
                       env:
-                        PYTHON_VENV_PATH: ${{ parameters.pythonVenvPath }}
-                        SUIT_UP_SCRIPT_PATH: "${{ parameters.functionsWorkingDirectoryPath }}/${{ parameters.functions.initializeStages }}"
+                        CONDA_BIN_PATH: ${{ parameters.condaBinPath }}
+                        FUNCTIONS_WORK_DIR: "${{ parameters.functionsWorkDir }}"
+                      displayName: "Bootstrap: Initialize functions env"
+
+                    - bash: |
+                        source activate $FUNCTIONS_VENV
+                        python ${{ parameters.functionsWorkDir }}/app/main.py INITIALIZE_WORKSPACE
+                      env:
+                        FUNCTIONS_VENV: ${{ parameters.functionsVenv }}
+                        SUIT_UP_SCRIPT_PATH: "${{ parameters.functionsWorkDir }}/${{ parameters.functionsResources }}/${{ parameters.functions.initializeStages }}"
                         STAGE_NAME: DEPLOYMENT
-                        DEPLOYMENT_PREFIX_PATH: $(System.DefaultWorkingDirectory)
-                      displayName: "Deployment: Set up"
+                        DEPLOYMENT_PREFIX_PATH: ${{ parameters.workspaceWorkDir }}
+                      displayName: "Bootstrap: Set up stage"
 
                     - task: DownloadPipelineArtifact@2
                       inputs:
@@ -173,33 +182,25 @@ stages:
                         buildVersionToDownload: "${{ parameters.buildVersionToDownload }}"
                         artifactName: "${{ parameters.artifactName }}"
                         pipelineId: "${{ parameters.buildVersionToDownload }}"
-                        targetPath: $(Flow.DeploymentSectionPath)
+                        targetPath: $(FLOW_DEPLOYMENT_SECTION_DIR)
                       displayName: "Deployment: Download pipeline artifact"
 
                     - bash: |
-                        source ${PYTHON_VENV_PATH}/bin/activate
-                        python ./$HELM_UPGRADE_SCRIPT_PATH \
-                          --deployment-work-dir=$DEPLOYMENT_WORK_DIR \
-                          --publish-file-path=$PUBLISH_FILE_PATH \
-                          --environment=$ENVIRONMENT \
-                          --project-path=$TARGET_PROJECT_PATH \
-                          --project-name=$TARGET_PROJECT \
-                          --app-resources=$APP_RESOURCES \
-                          --k8s-resources=$K8S_RESOURCES \
-                          --kube-config-content=$KUBE_CONFIG_CONTENT \
-                          --helm-chart-name=$HELM_CHART_NAME \
-                          --helm-chart-version=$HELM_CHART_VERSION \
-                          --helm-server-uri=$HELM_SERVER_URI \
-                          --helm-server-username=$HELM_SERVER_USERNAME \
-                          --helm-server-password=$HELM_SERVER_PASSWORD
+                        # echo "${GKE_SA_KEY}" | base64 --decode > gke-sa-key.json
+                        # gcloud auth activate-service-account --key-file=gke-sa-key.json
+                        # gcloud components install kubectl
+                        # gcloud components install gke-gcloud-auth-plugin
+                        # export USE_GKE_GCLOUD_AUTH_PLUGIN=True
+                        source activate $FUNCTIONS_VENV
+                        python ${{ parameters.functionsWorkDir }}/app/main.py HELM_UPGRADE
                       env:
-                        PYTHON_VENV_PATH: ${{ parameters.pythonVenvPath }}
-                        HELM_UPGRADE_SCRIPT_PATH: ${{ parameters.functionsWorkingDirectoryPath }}/${{ parameters.functions.helmUpgrade }}
-                        DEPLOYMENT_WORK_DIR: $(Flow.DeploymentSectionPath)
-                        PUBLISH_FILE_PATH: $(Flow.DeploymentSectionPath)/${{ parameters.publishFileName }}
+                        FUNCTIONS_VENV: ${{ parameters.functionsVenv }}
+                        HELM_UPGRADE_SCRIPT_PATH: "${{ parameters.functionsWorkDir }}/${{ parameters.functionsResources }}/${{ parameters.functions.helmUpgrade }}"
+                        DEPLOYMENT_WORK_DIR: $(FLOW_DEPLOYMENT_SECTION_DIR)
+                        PUBLISH_FILE_PATH: $(FLOW_DEPLOYMENT_SECTION_DIR)/${{ parameters.publishFileName }}
                         ENVIRONMENT: ${{ env }}
-                        TARGET_PROJECT_PATH: ${{ parameters.targetProjectPath }}/pipelines/${{ parameters.targetProjectResource }}
-                        TARGET_PROJECT: ${{ parameters.targetProjectResource }}
+                        PROJECT_PATH: ${{ parameters.targetProjectPath }}/pipelines/${{ parameters.targetProjectResource }}
+                        PROJECT_NAME: ${{ parameters.targetProjectResource }}
                         APP_RESOURCES: ${{ parameters.appResource }}
                         K8S_RESOURCES: ${{ parameters.k8sResource }}
                         HELM_CHART_NAME: ${{ parameters.helmChartName }}
@@ -207,10 +208,10 @@ stages:
                         HELM_SERVER_URI: $(SECRET-DOCKER-SERVER-URI)
                         HELM_SERVER_USERNAME: $(SECRET-DOCKER-SERVER-USERNAME)
                         HELM_SERVER_PASSWORD: $(SECRET-DOCKER-SERVER-PASSWORD)
-                        AWS_ACCESS_KEY_ID: $(SECRET-AWS-ACCESS-KEY-ID)
-                        AWS_DEFAULT_REGION: $(SECRET-AWS-DEFAULT-REGION)
-                        AWS_SECRET_ACCESS_KEY: $(SECRET-AWS-SECRET-ACCESS-KEY)
-                        KUBE_CONFIG_CONTENT: $(SECRET-EKS-KUBECONFIG-CONTENT-${{ env }})
+                        GKE_SA_KEY: $(GKE-SA-KEY)
+                        USE_GKE_GCLOUD_AUTH_PLUGIN: True
+                        KUBE_CONFIG_CONTENT: $(SECRET-K8S-KUBECONFIG-CONTENT-${{ env }})
+                        IS_SCAN_AZURE_SECRETS_VAULT: true
                         ${{ if ne(parameters.requiredProjectVars, '') }}:
                           ${{ each env_p  in parameters.requiredProjectVars }}:
                             ${{ env_p }}: "$(${{ env_p }})"
