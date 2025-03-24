@@ -14,55 +14,92 @@ parameters:
       - checkout: one-press-resources
       - checkout: one-press-functions
 
-  - name: resourcesWorkingDirectoryPath
-    type: string
-    default: "$(System.DefaultWorkingDirectory)/one-press-resources/resources"
-
-  - name: dockerWorkingDirectoryPath
-    type: string
-    default: "$(System.DefaultWorkingDirectory)/one-press-resources/resources/docker/dockerfiles"
-
-  - name: functionsWorkingDirectoryPath
-    type: string
-    default: "one-press-functions/functions"
-
-  - name: functions
-    type: object
+  - name: checkoutBootstrapStage
+    type: stepList
     default:
-      initializeStages: initialize_stages_ado.py
-      gitFlow: git_flow_ado.py
-      overrideBuildNumber: override_build_number_ado.py
-      writeDiary: write_diary.py
-      compilePlatform: compile_platform.py
-      runUnitTestPlatform: run_unit_test_platform.py
-      dockerBuild: docker_build.py
+      - checkout: one-press-functions
+        path: s/one-press-functions
+
+  - name: checkoutBuildStage
+    type: stepList
+    default:
+      - checkout: one-press-resources
+        path: s/one-press-resources
+      - checkout: one-press-functions
+        path: s/one-press-functions
+
+  - name: checkoutUnitTestStage
+    type: stepList
+    default:
+      - checkout: one-press-resources
+        path: s/one-press-resources
+      - checkout: one-press-functions
+        path: s/one-press-functions
+
+  - name: condaBinPath
+    type: string
+    default: "/opt/miniconda3/bin"
+
+  - name: workspaceWorkDir
+    type: string
+    default: "$(Agent.BuildDirectory)/w"
+
+  - name: resourcesWorkDir
+    type: string
+    default: "$(Agent.BuildDirectory)/s/one-press-resources"
+
+  - name: dockerResources
+    type: string
+    default: "resources/docker/dockerfiles"
+
+  - name: functionsWorkDir
+    type: string
+    default: "$(Agent.BuildDirectory)/s/one-press-functions"
+
+  - name: functionsResources
+    type: string
+    default: "app/functions"
+
+  - name: targetSubDir
+    type: string
+    default: ""
 
   - name: pythonVenvPath
     type: string
-    default: "/data/python-venv/one-press-functions"
+    displayName: Virtual environment path for python
+    default: "/data/.conda/envs"
+
+  - name: functionsVenv
+    type: string
+    displayName: Name of functions venv
+    default: "one-press-functions"
 
   - name: infrastructureVarVaultServiceConnection
     displayName: Name of service connection connect to base infrastructure vault
     type: string
-    default: $(Flow.BaseInfrastructureVarVaultServiceConnection)-$(System.TeamProject)
+    default: ""
 
   - name: infrastructureVarsVaultName
     displayName: Uri of docker
     type: string
-    default: $(Flow.InfrastructureVarsVaultName)
+    default: ""
 
-  - name: requiredInfrastructureVars
-    displayName: Uri of docker
+  - name: stageEnvVars
+    displayName: Required environment variables of stage
     type: object
     default:
-      bootstrapStage:
+      bootstrap:
         - SECRET-GIT-TOKEN
         - SECRET-GIT-USER
         - SECRET-DOCKER-SERVER-URI
-      buildStage:
+      build:
         - SECRET-DOCKER-SERVER-PASSWORD
         - SECRET-DOCKER-SERVER-URI
         - SECRET-DOCKER-SERVER-USERNAME
+        - SECRET-FEED-PASSWORD
+        - SECRET-FEED-MAVEN-SERVER-URL
+        - SECRET-FEED-USERNAME
+      unitTest:
         - SECRET-FEED-PASSWORD
         - SECRET-FEED-MAVEN-SERVER-URL
         - SECRET-FEED-USERNAME
@@ -122,6 +159,11 @@ parameters:
     type: string
     default: ""
 
+  - name: targetUnitTestOutputFilter
+    displayName: Filter of test output
+    type: string
+    default: "*.xml"
+
   - name: gitUrl
     displayName: Git url
     type: string
@@ -154,7 +196,7 @@ parameters:
     type: string
     default: /usr/lib/jvm/temurin-17-jdk-amd64
 
-  - name: isUsePrivateRepo
+  - name: isUsePrivateLibs
     displayName: Maven use private repo
     type: string
     default: "true"
@@ -162,45 +204,40 @@ parameters:
   - name: mavenSettingsPath
     displayName: Maven path of settings.xml
     type: string
-    default: "maven/config/settings.xml"
+    default: "resources/maven/config/settings.xml"
 
-  - name: mavenServerUrl
-    displayName: Url of server
-    type: string
-    default: $(SECRET-FEED-MAVEN-SERVER-URL)
-
-  - name: mavenUsername
-    displayName: Username of server
-    type: string
-    default: $(SECRET-FEED-USERNAME)
-
-  - name: mavenPassword
-    displayName: Password of server
-    type: string
-    default: $(SECRET-FEED-PASSWORD)
+  - name: compileEnvVars
+    displayName: Container required envs public
+    type: object
+    default:
+      MAVEN_SERVER_URL: $(SECRET-FEED-MAVEN-SERVER-URL)
+      MAVEN_SERVER_USERNAME: $(SECRET-FEED-USERNAME)
+      MAVEN_SERVER_PASSWORD: $(SECRET-FEED-PASSWORD)
 
   - name: dockerTagBaseOnEnv
     displayName: Uri of docker
     type: string
     default: "false"
 
-  - name: containerRequiredEnvsPublic
-    displayName: Container required envs public
+  - name: manuallyPublicEnvVars
+    displayName: Public environment variables of container manually
     type: object
-    default:
-      - PROJECT_NAME
-      - GIT_URL
-      - PIPELINE_NAME
-      - BUILD_NUMBER
+    default: {}
 
-  - name: containerRequiredEnvsPrivate
-    displayName: Container required envs private
+  - name: manuallyPrivateEnvVars
+    displayName: Private environment variables of container manually
     type: object
-    default:
-      - PROJECT_NAME
-      - GIT_URL
-      - PIPELINE_NAME
-      - BUILD_NUMBER
+    default: {}
+
+  - name: hostPublicEnvVars
+    displayName: Public environment variables load from host
+    type: object
+    default: {}
+
+  - name: hostPrivateEnvVars
+    displayName: Private environment variables load from host
+    type: object
+    default: {}
 
   - name: dockerfilePath
     displayName: Dockerfile path
@@ -255,6 +292,11 @@ parameters:
     type: string
     default: python3.10
 
+  - name: isUnitTestStage
+    displayName: Run unit test
+    type: boolean
+    default: true
+
 stages:
   - stage: Bootstrap
     jobs:
@@ -269,56 +311,44 @@ stages:
             name: ${{ parameters.runningAgent }}
           ${{ if eq(parameters.runningAgent, 'azp-agent-debian-docker') }}:
             name: ${{ parameters.runningAgent }}
+        variables:
+          - template: vars-cicd-k8s.yml
         steps:
-          - ${{ parameters.dependencies }}
+          - ${{ parameters.checkoutBootstrapStage }}
 
           - task: AzureKeyVault@2
             inputs:
-              azureSubscription: "${{ parameters.infrastructureVarVaultServiceConnection }}"
-              KeyVaultName: "${{ parameters.infrastructureVarsVaultName }}"
-              SecretsFilter: "${{ join(',',parameters.requiredInfrastructureVars.bootstrapStage) }}"
+              azureSubscription: ${{ variables.FLOW_INFRA_CONFIG_VAULT_SERVICE_CONNECTION }}
+              KeyVaultName: ${{ variables.FLOW_INFRA_CONFIG_VAULT_NAME }}
+              SecretsFilter: "${{ join(',',parameters.stageEnvVars.bootstrap) }}"
               RunAsPreJob: true
             displayName: "Bootstrap: Fetch vars from vault"
 
           - bash: |
-              $PYTHON_RUNTIME_VERSION -m venv one-press-functions "${PYTHON_VENV_PATH}"
-              source "${PYTHON_VENV_PATH}/bin/activate"
-              python --version
-              pip install -r "${FLOW_WORKDIR}/requirements.txt"
-              pip list
+              echo "##vso[task.setvariable variable=PATH;]${CONDA_BIN_PATH}:${PATH}"
+              echo "##vso[task.setvariable variable=PYTHONPATH;]${FUNCTIONS_WORK_DIR}:${PYTHONPATH}"
             env:
-              PYTHON_RUNTIME_VERSION: "${{ parameters.pythonRuntimeVersion }}"
-              PYTHON_VENV_PATH: "${{ parameters.pythonVenvPath }}"
-              FLOW_WORKDIR: "${{ parameters.functionsWorkingDirectoryPath }}"
-            displayName: "Bootstrap: Set up venv"
+              CONDA_BIN_PATH: ${{ parameters.condaBinPath }}
+              FUNCTIONS_WORK_DIR: "${{ parameters.functionsWorkDir }}"
+            displayName: "Bootstrap: Set up env"
 
           - bash: |
-              source "${PYTHON_VENV_PATH}/bin/activate"
-              python ./$SUIT_UP_SCRIPT_PATH \
-                --stage-name $STAGE_NAME \
-                --bootstrap-prefix-path $BOOTSTRAP_PREFIX_PATH
+              source activate $FUNCTIONS_VENV
+              python $EXECUTE_COMMAND
             env:
-              PYTHON_VENV_PATH: "${{ parameters.pythonVenvPath }}"
-              SUIT_UP_SCRIPT_PATH: "${{ parameters.functionsWorkingDirectoryPath }}/${{ parameters.functions.initializeStages }}"
+              FUNCTIONS_VENV: ${{ parameters.functionsVenv }}
+              EXECUTE_COMMAND: ${{ parameters.functionsWorkDir }}/app/main.py INITIALIZE_WORKSPACE
               STAGE_NAME: BOOTSTRAP
-              BOOTSTRAP_PREFIX_PATH: $(System.DefaultWorkingDirectory)
-            displayName: "Bootstrap: Set up stage"
+              BOOTSTRAP_BASE_DIR: "${{ parameters.workspaceWorkDir }}"
+            displayName: "Bootstrap: Initialize workspace"
 
           - bash: |
-              source "${PYTHON_VENV_PATH}/bin/activate"
-              python ./$GIT_FLOW_SCRIPT_PATH \
-                --app-source-prefix-path $APP_SOURCE_PREFIX_PATH \
-                --app-source $APP_SOURCE \
-                --git-url $GIT_URL \
-                --git-branch $GIT_BRANCH \
-                --is-private-repo $IS_PRIVATE_REPO \
-                --git-username $GIT_USERNAME \
-                --git-token $GIT_TOKEN \
-                --archive-path $ARCHIVE_PATH
+              source activate $FUNCTIONS_VENV
+              python $EXECUTE_COMMAND
             env:
-              PYTHON_VENV_PATH: "${{ parameters.pythonVenvPath }}"
-              GIT_FLOW_SCRIPT_PATH: "${{ parameters.functionsWorkingDirectoryPath }}/${{ parameters.functions.gitFlow }}"
-              APP_SOURCE_PREFIX_PATH: $(Flow.BootstrapSectionPath)
+              FUNCTIONS_VENV: ${{ parameters.functionsVenv }}
+              EXECUTE_COMMAND: ${{ parameters.functionsWorkDir }}/app/main.py GIT_CLONE_ADO
+              APP_SOURCE_PREFIX_PATH: $(FLOW_BOOTSTRAP_SECTION_DIR)
               APP_SOURCE: ${{ parameters.appFolder }}
               GIT_URL: ${{ parameters.gitUrl }}
               GIT_BRANCH: ${{ parameters.gitBranch }}
@@ -328,48 +358,35 @@ stages:
               ARCHIVE_PATH: $(Build.ArtifactStagingDirectory)
             displayName: "Bootstrap: Clone source"
 
-          - bash: |
-              source "${PYTHON_VENV_PATH}/bin/activate"
-              python ./$OVERRIDE_BUILD_NUMBER_SCRIPT_PATH \
-                -bn $BUILD_NUMBER \
-                -ci $COMMIT_ID \
-            env:
-              PYTHON_VENV_PATH: "${{ parameters.pythonVenvPath }}"
-              OVERRIDE_BUILD_NUMBER_SCRIPT_PATH: "${{ parameters.functionsWorkingDirectoryPath }}/${{ parameters.functions.overrideBuildNumber }}"
-              BUILD_NUMBER: $(Build.BuildNumber)
-              COMMIT_ID: $(Flow.GitShortCommitId)
-            displayName: "Bootstrap: Override build number"
+          # - bash: |
+          #     source activate $FUNCTIONS_VENV
+          #     python $EXECUTE_COMMAND
+          #   env:
+          #     FUNCTIONS_VENV: ${{ parameters.functionsVenv }}
+          #     EXECUTE_COMMAND: ${{ parameters.functionsWorkDir }}/app/main.py OVERRIDE_BUILD_NUMBER_ADO
+          #     BUILD_NUMBER: $(Build.BuildNumber)
+          #     COMMIT_ID: $(FLOW_GIT_SHORT_COMMIT_ID)
+          #   displayName: "Bootstrap: Override build number"
 
           - bash: |
-              source "${PYTHON_VENV_PATH}/bin/activate"
-              python ./$LOGGER_SCRIPT_PATH \
-                --publish-prefix-path=$PUBLISH_PREFIX_PATH \
-                --publish-file-name=$PUBLISH_FILE_NAME \
-                --git-url=$GIT_URL \
-                --git-commit-id=$GIT_COMMIT_ID \
-                --git-short-commit-id=$GIT_SHORT_COMMIT_ID \
-                --pipeline-name=$PIPELINE_NAME \
-                --build-number=$BUILD_NUMBER \
-                --docker-server-uri=$DOCKER_SERVER_URI \
-                --image-name=$DOCKER_IMAGE_NAME \
-                --image-tag=$DOCKER_IMAGE_TAG \
-                --is-image-tag-based-on-env=$DOCKER_TAG_BASE_ON_ENV \
-                --container-required-envs-public="${CONTAINER_REQUIRED_ENVS_PUBLIC}" \
-                --container-required-envs-private="${CONTAINER_REQUIRED_ENVS_PRIVATE}"
+              source activate $FUNCTIONS_VENV
+              python $EXECUTE_COMMAND
             env:
-              PYTHON_VENV_PATH: "${{ parameters.pythonVenvPath }}"
-              LOGGER_SCRIPT_PATH: "${{ parameters.functionsWorkingDirectoryPath }}/${{ parameters.functions.writeDiary }}"
+              FUNCTIONS_VENV: ${{ parameters.functionsVenv }}
+              EXECUTE_COMMAND: ${{ parameters.functionsWorkDir }}/app/main.py WRITE_DIARY
               PUBLISH_PREFIX_PATH: "$(Build.ArtifactStagingDirectory)"
               PUBLISH_FILE_NAME: ${{ parameters.publishFileName }}
               GIT_URL: ${{ parameters.gitUrl }}
-              GIT_COMMIT_ID: $(Flow.GitCommitId)
-              GIT_SHORT_COMMIT_ID: $(Flow.GitShortCommitId)
+              GIT_COMMIT_ID: $(FLOW_GIT_COMMIT_ID)
+              GIT_SHORT_COMMIT_ID: $(FLOW_GIT_SHORT_COMMIT_ID)
               DOCKER_SERVER_URI: ${{ parameters.dockerServerUri }}
               DOCKER_IMAGE_NAME: ${{ parameters.dockerImageName }}
               DOCKER_IMAGE_TAG: ${{ parameters.dockerImageTag }}
-              DOCKER_TAG_BASE_ON_ENV: ${{ parameters.dockerTagBaseOnEnv }}
-              CONTAINER_REQUIRED_ENVS_PUBLIC: ${{ convertToJson(parameters.containerRequiredEnvsPublic) }}
-              CONTAINER_REQUIRED_ENVS_PRIVATE: ${{ convertToJson(parameters.containerRequiredEnvsPrivate) }}
+              IS_IMAGE_TAG_BASED_ON_ENV: ${{ parameters.dockerTagBaseOnEnv }}
+              MANUALLY_PUBLIC_ENV_VARS : ${{ convertToJson(parameters.manuallyPublicEnvVars) }}
+              MANUALLY_PRIVATE_ENV_VARS: ${{ convertToJson(parameters.manuallyPrivateEnvVars) }}
+              HOST_PUBLIC_ENV_VARS: ${{ convertToJson(parameters.hostPublicEnvVars) }}
+              HOST_PRIVATE_ENV_VARS: ${{ convertToJson(parameters.hostPrivateEnvVars) }}
               PIPELINE_NAME: $(Build.DefinitionName)
               BUILD_NUMBER: ${{ parameters.buildNumber }}
             displayName: "Bootstrap: Write diary"
@@ -394,174 +411,172 @@ stages:
             name: ${{ parameters.runningAgent }}
           ${{ if eq(parameters.runningAgent, 'azp-agent-debian-docker') }}:
             name: ${{ parameters.runningAgent }}
+        variables:
+          - template: vars-cicd-k8s.yml
         steps:
-          - ${{ parameters.dependencies }}
+          - ${{ parameters.checkoutBuildStage }}
 
           - task: AzureKeyVault@2
             inputs:
-              azureSubscription: "${{ parameters.infrastructureVarVaultServiceConnection }}"
-              KeyVaultName: "${{ parameters.infrastructureVarsVaultName }}"
-              SecretsFilter: "${{ join(',',parameters.requiredInfrastructureVars.buildStage) }}"
+              azureSubscription: ${{ variables.FLOW_INFRA_CONFIG_VAULT_SERVICE_CONNECTION }}
+              KeyVaultName: ${{ variables.FLOW_INFRA_CONFIG_VAULT_NAME }}
+              SecretsFilter: "${{ join(',',parameters.stageEnvVars.build) }}"
               RunAsPreJob: true
             displayName: "Build: Fetch vars from vault"
 
           - bash: |
-              source "${PYTHON_VENV_PATH}/bin/activate"
-              python ./$SUIT_UP_SCRIPT_PATH \
-                --stage-name $STAGE_NAME \
-                --build-prefix-path $BUILD_PREFIX_PATH \
-                --target-build-app $TARGET_BUILD_APP \
-                --target-build-output $TARGET_BUILD_OUTPUT
+              echo "##vso[task.setvariable variable=PATH;]${CONDA_BIN_PATH}:${PATH}"
+              echo "##vso[task.setvariable variable=PYTHONPATH;]${FUNCTIONS_WORK_DIR}:${PYTHONPATH}"
             env:
-              PYTHON_VENV_PATH: "${{ parameters.pythonVenvPath }}"
-              SUIT_UP_SCRIPT_PATH: "${{ parameters.functionsWorkingDirectoryPath }}/${{ parameters.functions.initializeStages }}"
+              CONDA_BIN_PATH: ${{ parameters.condaBinPath }}
+              FUNCTIONS_WORK_DIR: "${{ parameters.functionsWorkDir }}"
+            displayName: "Build: Set up env"
+
+          - bash: |
+              source activate $FUNCTIONS_VENV
+              python $EXECUTE_COMMAND
+            env:
+              FUNCTIONS_VENV: ${{ parameters.functionsVenv }}
+              EXECUTE_COMMAND: ${{ parameters.functionsWorkDir }}/app/main.py INITIALIZE_WORKSPACE
               STAGE_NAME: BUILD
-              BUILD_PREFIX_PATH: "$(System.DefaultWorkingDirectory)"
-              TARGET_BUILD_APP: "${{ parameters.appFolder }}/${{ parameters.targetBuildApp }}"
-              TARGET_BUILD_OUTPUT: "${{ parameters.appFolder }}/${{ parameters.targetBuildOutput }}"
-            displayName: "Build: Set up stage"
+              BUILD_BASE_DIR: "${{ parameters.workspaceWorkDir }}"
+              APP_SOURCE: ${{ parameters.appFolder }}
+              TARGET_BUILD_APP: "${{ parameters.targetBuildApp }}"
+              TARGET_BUILD_OUTPUT: "${{ parameters.targetBuildOutput }}"
+            displayName: "Build: Initialize workspace"
 
           - task: DownloadPipelineArtifact@2
             inputs:
               buildType: "current"
               itemPattern: "**"
-              targetPath: "$(Flow.BuildSectionPath)"
+              targetPath: "$(FLOW_BUILD_SECTION_DIR)"
             displayName: "Build: Download Bootstrap artifact"
 
           - task: ExtractFiles@1
             inputs:
-              archiveFilePatterns: "$(Flow.BuildSectionPath)/${{ parameters.bootstrapArtifactName }}/*.zip"
-              destinationFolder: "$(Flow.BuildAppPath)"
-              cleanDestinationFolder: false
+              archiveFilePatterns: "$(FLOW_BUILD_SECTION_DIR)/${{ parameters.bootstrapArtifactName }}/*.zip"
+              destinationFolder: "$(FLOW_BUILD_APP_DIR)"
               overwriteExistingFiles: true
             displayName: "Build: Extract Bootstrap artifact"
 
           - bash: |
-              source "${PYTHON_VENV_PATH}/bin/activate"
-              python ./$COMPILE_PLATFORM_SCRIPT_PATH \
-                --picked-platform=MAVEN \
-                --maven-build-work-dir-path="${MAVEN_BUILD_WORKING_DIRECTORY_PATH}" \
-                --maven-build-output-path="${MAVEN_BUILD_OUTPUT_PATH}" \
-                --is-use-private-repo=$IS_USE_PRIVATE_REPO \
-                --settings-xml-path="${SETTINGS_XML_PATH}"
+              source activate $FUNCTIONS_VENV
+              python $EXECUTE_COMMAND
             env:
-              PYTHON_VENV_PATH: "${{ parameters.pythonVenvPath }}"
-              COMPILE_PLATFORM_SCRIPT_PATH: "${{ parameters.functionsWorkingDirectoryPath }}/${{ parameters.functions.compilePlatform }}"
-              MAVEN_BUILD_WORKING_DIRECTORY_PATH: $(Flow.TargetBuildAppPath)
-              MAVEN_BUILD_OUTPUT_PATH: $(Flow.TargetBuildOutputPath)
-              IS_USE_PRIVATE_REPO: ${{ parameters.isUsePrivateRepo }}
-              SETTINGS_XML_PATH: ${{ parameters.resourcesWorkingDirectoryPath }}/${{ parameters.mavenSettingsPath }}
-              MAVEN_SERVER_URL: ${{ parameters.mavenServerUrl }}
-              MAVEN_SERVER_USERNAME: ${{ parameters.mavenUsername }}
-              MAVEN_SERVER_PASSWORD: ${{ parameters.mavenPassword }}
+              ${{ each env_p in parameters.compileEnvVars }}:
+                ${{ env_p.key }}: ${{ env_p.value }}
+              FUNCTIONS_VENV: ${{ parameters.functionsVenv }}
+              EXECUTE_COMMAND: ${{ parameters.functionsWorkDir }}/app/main.py COMPILE_PLATFORM
+              TARGET_PLATFORM: MAVEN
+              APP_SOURCE_DIR: $(FLOW_BUILD_APP_DIR)/${{ parameters.appFolder }}
+              TARGET_SUB_DIR: ${{ parameters.targetSubDir }}
+              TARGET_BUILD_APP: "${{ parameters.targetBuildApp }}"
+              TARGET_BUILD_OUTPUT: "${{ parameters.targetBuildOutput }}"
+              IS_USE_PRIVATE_LIBS: ${{ parameters.isUsePrivateLibs }}
+              SETTINGS_XML_PATH: ${{ parameters.resourcesWorkDir }}/${{ parameters.mavenSettingsPath }}
             displayName: "Build: Compile platform"
 
           - bash: |
-              source "${PYTHON_VENV_PATH}/bin/activate"
-              python ./$DOCKER_BUILD_PYTHON_SCRIPT_PATH \
-                --publish-file-path=$PUBLISH_FILE_PATH \
-                --docker-resource-work-dir=$DOCKER_RESOURCE_PREFIX_PATH \
-                --docker-resource-content=$DOCKER_RESOURCE_FOLDER \
-                  --target-build-output-path=$TARGET_BUILD_OUTPUT_PATH \
-                  --target-build-path=$TARGET_BUILD_DOCKER_PATH \
-                  --args-json="${DOCKERS_ARGS_JSON}" \
-                  --is-private-registry=$DOCKER_IS_PRIVATE_REGISTRY \
-                  --server-uri=$DOCKER_SERVER_URI \
-                  --server-username=$DOCKER_SERVER_USERNAME \
-                  --server-password=$DOCKER_SERVER_PASSWORD
+              source activate $FUNCTIONS_VENV
+              python $EXECUTE_COMMAND
             env:
-              PYTHON_VENV_PATH: "${{ parameters.pythonVenvPath }}"
-              DOCKER_BUILD_PYTHON_SCRIPT_PATH: "${{ parameters.functionsWorkingDirectoryPath }}/${{ parameters.functions.dockerBuild }}"
-              PUBLISH_FILE_PATH: "$(Flow.BuildSectionPath)/${{ parameters.bootstrapArtifactName }}/${{ parameters.publishFileName }}"
-              TARGET_BUILD_OUTPUT_PATH: "$(Flow.TargetBuildOutputPath)"
-              TARGET_BUILD_DOCKER_PATH: "$(Flow.BuildDockerPath)"
+              FUNCTIONS_VENV: ${{ parameters.functionsVenv }}
+              EXECUTE_COMMAND: ${{ parameters.functionsWorkDir }}/app/main.py DOCKER_BUILD
+              PUBLISH_FILE_PATH: "$(FLOW_BUILD_SECTION_DIR)/${{ parameters.bootstrapArtifactName }}/${{ parameters.publishFileName }}"
+              TARGET_BUILD_OUTPUT_PATH: "$(FLOW_TARGET_BUILD_OUTPUT_DIR)"
+              TARGET_BUILD_DOCKER_PATH: "$(FLOW_BUILD_DOCKER_DIR)"
               DOCKER_IS_PRIVATE_REGISTRY: "true"
               DOCKER_SERVER_URI: ${{ parameters.dockerServerUri }}
               DOCKER_SERVER_USERNAME: ${{ parameters.dockerServerUsername }}
               DOCKER_SERVER_PASSWORD: ${{ parameters.dockerServerPassword }}
-              DOCKER_RESOURCE_PREFIX_PATH: "${{ parameters.dockerWorkingDirectoryPath }}"
-              DOCKER_RESOURCE_FOLDER: "${{ parameters.dockerfilePath }}/."
+              DOCKER_RESOURCE_WORK_DIR: "${{ parameters.resourcesWorkDir }}/${{ parameters.dockerResources }}"
+              DOCKER_TARGET_DOCKERFILE: "${{ parameters.dockerfilePath }}/."
               DOCKERS_ARGS_JSON: "${{ convertToJson(parameters.containerArgs) }}"
             displayName: "Build: Docker build"
 
-  - stage: UnitTest
-    dependsOn: Bootstrap
-    jobs:
-      - job: RunUnitTest
-        displayName: Run unit test
-        workspace:
-          clean: all
-        pool:
-          ${{ if eq(parameters.runningAgent, 'ubuntu-latest') }}:
-            vmImage: ${{ parameters.runningAgent }}
-          ${{ if eq(parameters.runningAgent, 'azp-agent-ubuntu-docker') }}:
-            name: ${{ parameters.runningAgent }}
-          ${{ if eq(parameters.runningAgent, 'azp-agent-debian-docker') }}:
-            name: ${{ parameters.runningAgent }}
-        steps:
-          - ${{ parameters.dependencies }}
+  - ${{ if eq(parameters.isUnitTestStage, true) }}:
+      - stage: UnitTest
+        dependsOn: Bootstrap
+        jobs:
+          - job: RunUnitTest
+            displayName: Run unit test
+            workspace:
+              clean: all
+            pool:
+              ${{ if eq(parameters.runningAgent, 'ubuntu-latest') }}:
+                vmImage: ${{ parameters.runningAgent }}
+              ${{ if eq(parameters.runningAgent, 'azp-agent-ubuntu-docker') }}:
+                name: ${{ parameters.runningAgent }}
+              ${{ if eq(parameters.runningAgent, 'azp-agent-debian-docker') }}:
+                name: ${{ parameters.runningAgent }}
+            variables:
+              - template: vars-cicd-k8s.yml
+            steps:
+              - ${{ parameters.checkoutUnitTestStage }}
 
-          - task: AzureKeyVault@2
-            inputs:
-              azureSubscription: "${{ parameters.infrastructureVarVaultServiceConnection }}"
-              KeyVaultName: "${{ parameters.infrastructureVarsVaultName }}"
-              SecretsFilter: "${{ join(',',parameters.requiredInfrastructureVars.buildStage) }}"
-              RunAsPreJob: true
-            displayName: "UnitTest: Fetch vars from vault"
+              - task: AzureKeyVault@2
+                inputs:
+                  azureSubscription: ${{ variables.FLOW_INFRA_CONFIG_VAULT_SERVICE_CONNECTION }}
+                  KeyVaultName: ${{ variables.FLOW_INFRA_CONFIG_VAULT_NAME }}
+                  SecretsFilter: "${{ join(',',parameters.stageEnvVars.unitTest) }}"
+                  RunAsPreJob: true
+                displayName: "UnitTest: Fetch vars from vault"
 
-          - bash: |
-              source "${PYTHON_VENV_PATH}/bin/activate"
-              python ./$SUIT_UP_SCRIPT_PATH \
-                --stage-name $STAGE_NAME \
-                --unit-test-prefix-path $UNIT_TEST_PREFIX_PATH \
-                --target-unit-test-app $TARGET_UNIT_TEST_APP \
-                --target-unit-test-output $TARGET_UNIT_TEST_OUTPUT
-            env:
-              PYTHON_VENV_PATH: "${{ parameters.pythonVenvPath }}"
-              SUIT_UP_SCRIPT_PATH: "${{ parameters.functionsWorkingDirectoryPath }}/${{ parameters.functions.initializeStages }}"
-              STAGE_NAME: UNIT_TEST
-              UNIT_TEST_PREFIX_PATH: "$(System.DefaultWorkingDirectory)"
-              TARGET_UNIT_TEST_APP: ${{ parameters.appFolder }}/${{ parameters.targetUnitTestApp }}
-              TARGET_UNIT_TEST_OUTPUT: ${{ parameters.appFolder }}/${{ parameters.targetUnitTestOutput }}
-            displayName: "UnitTest: Set up stage"
+              - bash: |
+                  echo "##vso[task.setvariable variable=PATH;]${CONDA_BIN_PATH}:${PATH}"
+                  echo "##vso[task.setvariable variable=PYTHONPATH;]${FUNCTIONS_WORK_DIR}:${PYTHONPATH}"
+                env:
+                  CONDA_BIN_PATH: ${{ parameters.condaBinPath }}
+                  FUNCTIONS_WORK_DIR: "${{ parameters.functionsWorkDir }}"
+                displayName: "UnitTest: Set up env"
 
-          - task: DownloadPipelineArtifact@2
-            inputs:
-              buildType: "current"
-              itemPattern: "**"
-              targetPath: "$(Flow.UnitTestSectionPath)"
-            displayName: "UnitTest: Download Bootstrap artifact"
+              - bash: |
+                  source activate $FUNCTIONS_VENV
+                  python $EXECUTE_COMMAND
+                env:
+                  FUNCTIONS_VENV: ${{ parameters.functionsVenv }}
+                  EXECUTE_COMMAND: ${{ parameters.functionsWorkDir }}/app/main.py INITIALIZE_WORKSPACE
+                  STAGE_NAME: UNIT_TEST
+                  UNIT_TEST_BASE_DIR: "${{ parameters.workspaceWorkDir }}"
+                  APP_SOURCE: ${{ parameters.appFolder }}
+                  TARGET_UNIT_TEST_APP: ${{ parameters.targetUnitTestApp }}
+                  TARGET_UNIT_TEST_OUTPUT: ${{ parameters.targetUnitTestOutput }}
+                displayName: "UnitTest: Initialize workspace"
 
-          - task: ExtractFiles@1
-            inputs:
-              archiveFilePatterns: "$(Flow.UnitTestSectionPath)/${{ parameters.bootstrapArtifactName }}/*.zip"
-              destinationFolder: "$(Flow.UnitTestSectionPath)"
-              cleanDestinationFolder: false
-              overwriteExistingFiles: true
-            displayName: "UnitTest: Extract Bootstrap artifact"
+              - task: DownloadPipelineArtifact@2
+                inputs:
+                  buildType: "current"
+                  itemPattern: "**"
+                  targetPath: "$(FLOW_UNIT_TEST_SECTION_DIR)"
+                displayName: "UnitTest: Download Bootstrap artifact"
 
-          - bash: |
-              source "${PYTHON_VENV_PATH}/bin/activate"
-              python ./$RUN_UNIT_TEST_PLATFORM_SCRIPT_PATH \
-                --picked-platform=MAVEN \
-                --maven-unit-test-work-dir-path="${TARGET_UNIT_TEST_PATH}" \
-                --maven-unit-test-output-path="${TARGET_UNIT_TEST_OUTPUT_PATH}" \
-                --is-use-private-repo=$IS_USE_PRIVATE_REPO \
-                --settings-xml-path="${SETTINGS_XML_PATH}"
-            env:
-              PYTHON_VENV_PATH: "${{ parameters.pythonVenvPath }}"
-              RUN_UNIT_TEST_PLATFORM_SCRIPT_PATH: "${{ parameters.functionsWorkingDirectoryPath }}/${{ parameters.functions.runUnitTestPlatform }}"
-              TARGET_UNIT_TEST_PATH: $(Flow.TargetUnitTestPath)
-              TARGET_UNIT_TEST_OUTPUT_PATH: $(Flow.TargetUnitTestOutputPath)
-              IS_USE_PRIVATE_REPO: ${{ parameters.isUsePrivateRepo }}
-              SETTINGS_XML_PATH: ${{ parameters.resourcesWorkingDirectoryPath }}/${{ parameters.mavenSettingsPath }}
-              MAVEN_SERVER_URL: ${{ parameters.mavenServerUrl }}
-              MAVEN_SERVER_USERNAME: ${{ parameters.mavenUsername }}
-              MAVEN_SERVER_PASSWORD: ${{ parameters.mavenPassword }}
-            displayName: "UnitTest: Run unit test"
+              - task: ExtractFiles@1
+                inputs:
+                  archiveFilePatterns: "$(FLOW_UNIT_TEST_SECTION_DIR)/${{ parameters.bootstrapArtifactName }}/*.zip"
+                  destinationFolder: "$(FLOW_UNIT_TEST_SECTION_DIR)"
+                  cleanDestinationFolder: false
+                  overwriteExistingFiles: true
+                displayName: "UnitTest: Extract Bootstrap artifact"
 
-          - task: PublishTestResults@2
-            inputs:
-              testResultsFormat: "JUnit"
-              testResultsFiles: "$(Flow.TargetUnitTestOutputPath)"
-            displayName: "UnitTest: Expose the report"
+              - bash: |
+                  source activate $FUNCTIONS_VENV
+                  python $EXECUTE_COMMAND
+                env:
+                  FUNCTIONS_VENV: ${{ parameters.functionsVenv }}
+                  EXECUTE_COMMAND: ${{ parameters.functionsWorkDir }}/app/main.py RUN_UNIT_TEST_PLATFORM
+                  PICKED_PLATFORM: MAVEN
+                  APP_SOURCE_DIR: $(FLOW_UNIT_TEST_SECTION_DIR)/${{ parameters.appFolder }}
+                  TARGET_SUB_DIR: ${{ parameters.targetSubDir }}
+                  TARGET_UNIT_TEST_APP: "${{ parameters.targetUnitTestApp }}"
+                  TARGET_UNIT_TEST_OUTPUT: "${{ parameters.targetUnitTestOutput }}"
+                  IS_USE_PRIVATE_LIBS: ${{ parameters.isUsePrivateLibs }}
+                  SETTINGS_XML_PATH: ${{ parameters.resourcesWorkDir }}/${{ parameters.mavenSettingsPath }}
+                  ${{ each env_p in parameters.compileEnvVars }}:
+                    ${{ env_p.key }}: ${{ env_p.value }}
+                displayName: "UnitTest: Run unit test"
+
+              - task: PublishTestResults@2
+                inputs:
+                  testResultsFormat: "JUnit"
+                  testResultsFiles: "$(FLOW_TARGET_UNIT_TEST_OUTPUT_DIR)/${{ parameters.targetUnitTestOutputFilter }}"
+                displayName: "UnitTest: Expose the report"
