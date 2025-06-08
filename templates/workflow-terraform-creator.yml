@@ -1,0 +1,228 @@
+parameters:
+  - name: runningAgent
+    displayName: Pick agent to run
+    type: string
+    default: azp-agent-ubuntu-docker
+    values:
+      - ubuntu-latest
+      - azp-agent-ubuntu-docker
+      - azp-agent-debian-docker
+      - azp-agent-debian-docker-local
+
+  - name: terraformProvider
+    displayName: Select Terraform Provider
+    type: string
+    default: terraform-ft-azure
+    values:
+      - terraform-ft-azure
+      - terraform-ft-aws
+
+  - name: dependencies
+    type: stepList
+    default:
+      - checkout: self
+      - checkout: one-press-bash
+
+  - name: scriptsWorkingDirectoryPath
+    type: string
+    default: one-press-bash/src/functions
+
+  - name: terraformWorkingDirectoryPath
+    type: string
+    default: one-press-terraform/modules
+
+  - name: targetTerraformModule
+    displayName: Target Terraform module.
+    type: string
+
+  - name: localDataPath
+    displayName: Path of Terraform's local data
+    type: string
+
+  - name: azStorageAccountName
+    displayName: Access key id
+    type: string
+    default: $(AZ_STORAGE_ACCOUNT_NAME)
+
+  - name: azStorageAccountSas
+    displayName: secret access key
+    type: string
+    default: $(AZ_STORAGE_ACCOUNT_SAS)
+
+  - name: azContainerName
+    displayName: Access key id
+    type: string
+    default: blob-terraformstates-001
+
+  - name: azContainerDestPath
+    displayName: secret access key
+    type: string
+    default: $(Build.BuildNumber)
+
+  - name: scriptFiles
+    type: object
+    default:
+      terraformPlan: terraform-plan.sh
+      terraformApply: terraform-apply.sh
+      terraformDestroy: terraform-destroy.sh
+
+  - name: pipelineName
+    displayName: Name of pipeline.
+    type: string
+    default: $(Build.DefinitionName)
+
+  - name: buildNumber
+    displayName: Build number of pipeline.
+    type: string
+    default: $(Build.BuildNumber)
+
+stages:
+  - stage: Plan
+    jobs:
+      - deployment: ValidateResources
+        displayName: Validate resources
+        workspace:
+          clean: all
+        pool:
+          ${{ if eq(parameters.runningAgent, 'ubuntu-latest') }}:
+            vmImage: ${{ parameters.runningAgent }}
+          ${{ if eq(parameters.runningAgent, 'azp-agent-ubuntu-docker') }}:
+            name: ${{ parameters.runningAgent }}
+          ${{ if eq(parameters.runningAgent, 'azp-agent-debian-docker') }}:
+            name: ${{ parameters.runningAgent }}
+          ${{ if eq(parameters.runningAgent, 'azp-agent-debian-docker-local') }}:
+            name: ${{ parameters.runningAgent }}
+        environment:
+          name: "TERRAFORM_PLAN"
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - ${{ if eq(parameters.terraformProvider, 'terraform-ft-azure') }}:
+                    - ${{ parameters.dependencies }}
+                    - checkout: terraform-ft-azure
+                - ${{ if eq(parameters.terraformProvider, 'terraform-ft-aws') }}:
+                    - ${{ parameters.dependencies }}
+                    - checkout: terraform-ft-aws
+
+                - bash: |
+                    ./$TERRAFORM_PLAN_SCRIPT_PATH
+                  env:
+                    TERRAFORM_PLAN_SCRIPT_PATH: ${{ parameters.scriptsWorkingDirectoryPath }}/${{ parameters.scriptFiles.terraformPlan }}
+                    TARGET_TERRAFORM_MODULE_PATH: ${{ parameters.terraformWorkingDirectoryPath }}/${{ parameters.targetTerraformModule }}
+                    LOCAL_DATA_PATH: ${{ parameters.localDataPath }}
+                  displayName: "Plan: Run"
+
+  - stage: Apply
+    jobs:
+      - deployment:
+        displayName: Validate resources
+        workspace:
+          clean: all
+        pool:
+          ${{ if eq(parameters.runningAgent, 'ubuntu-latest') }}:
+            vmImage: ${{ parameters.runningAgent }}
+          ${{ if eq(parameters.runningAgent, 'azp-agent-ubuntu-docker') }}:
+            name: ${{ parameters.runningAgent }}
+          ${{ if eq(parameters.runningAgent, 'azp-agent-debian-docker') }}:
+            name: ${{ parameters.runningAgent }}
+          ${{ if eq(parameters.runningAgent, 'azp-agent-debian-docker-local') }}:
+            name: ${{ parameters.runningAgent }}
+        environment:
+          name: "TERRAFORM_APPLY"
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - ${{ if eq(parameters.terraformProvider, 'terraform-ft-azure') }}:
+                    - ${{ parameters.dependencies }}
+                    - checkout: terraform-ft-azure
+                - ${{ if eq(parameters.terraformProvider, 'terraform-ft-aws') }}:
+                    - ${{ parameters.dependencies }}
+                    - checkout: terraform-ft-aws
+
+                - bash: |
+                    ./$TERRAFORM_APPLY_SCRIPT_PATH
+                  env:
+                    TERRAFORM_APPLY_SCRIPT_PATH: ${{ parameters.scriptsWorkingDirectoryPath }}/${{ parameters.scriptFiles.terraformApply }}
+                    TARGET_TERRAFORM_MODULE_PATH: ${{ parameters.terraformWorkingDirectoryPath }}/${{ parameters.targetTerraformModule }}
+                    LOCAL_DATA_PATH: ${{ parameters.localDataPath }}
+                  continueOnError: true
+                  displayName: "Apply: Run"
+
+                - bash: |
+                    ls -la
+
+                    azcopy cp "${TARGET_COPY_PATH}" \
+                    "https://${AZ_STORAGE_ACCOUNT_NAME}.blob.core.windows.net/${AZ_CONTAINER_NAME}/${AZ_CONTAINER_DEST_PATH}?${AZ_STORAGE_ACCOUNT_SAS}" \
+                    --exclude-path="${EXCLUDE_PATH}" \
+                    --recursive=true \
+                    --as-subdir=false
+                  env:
+                    TARGET_COPY_PATH: "."
+                    EXCLUDE_PATH: ".terraform"
+                    AZ_STORAGE_ACCOUNT_NAME: ${{ parameters.azStorageAccountName }}
+                    AZ_STORAGE_ACCOUNT_SAS: ${{ parameters.azStorageAccountSas }}
+                    AZ_CONTAINER_NAME: ${{ parameters.azContainerName }}
+                    AZ_CONTAINER_DEST_PATH: ${{ parameters.targetTerraformModule }}/${{ parameters.azContainerDestPath }}
+                  workingDirectory: ${{ parameters.terraformWorkingDirectoryPath }}/${{ parameters.targetTerraformModule }}
+                  displayName: "Apply: Preserve"
+
+                - script: |
+                    echo "##vso[build.addbuildtag]status=using"
+                  displayName: "Apply tag"
+
+  - stage: Destroy
+    jobs:
+      - deployment: DeleteResources
+        displayName: Delete resources
+        workspace:
+          clean: all
+        pool:
+          ${{ if eq(parameters.runningAgent, 'ubuntu-latest') }}:
+            vmImage: ${{ parameters.runningAgent }}
+          ${{ if eq(parameters.runningAgent, 'azp-agent-ubuntu-docker') }}:
+            name: ${{ parameters.runningAgent }}
+          ${{ if eq(parameters.runningAgent, 'azp-agent-debian-docker') }}:
+            name: ${{ parameters.runningAgent }}
+          ${{ if eq(parameters.runningAgent, 'azp-agent-debian-docker-local') }}:
+            name: ${{ parameters.runningAgent }}
+        environment:
+          name: "TERRAFORM_DESTROY"
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - ${{ if eq(parameters.terraformProvider, 'terraform-ft-azure') }}:
+                    - ${{ parameters.dependencies }}
+                    - checkout: terraform-ft-azure
+                - ${{ if eq(parameters.terraformProvider, 'terraform-ft-aws') }}:
+                    - ${{ parameters.dependencies }}
+                    - checkout: terraform-ft-aws
+
+                - bash: |
+                    azcopy cp "https://${AZ_STORAGE_ACCOUNT_NAME}.blob.core.windows.net/${AZ_CONTAINER_NAME}/${AZ_CONTAINER_DEST_PATH}?${AZ_STORAGE_ACCOUNT_SAS}" \
+                    "${TARGET_COPY_PATH}" \
+                    --recursive=true \
+                    --as-subdir=false
+
+                    ls -la
+                  env:
+                    TARGET_COPY_PATH: "."
+                    AZ_STORAGE_ACCOUNT_NAME: ${{ parameters.azStorageAccountName }}
+                    AZ_STORAGE_ACCOUNT_SAS: ${{ parameters.azStorageAccountSas }}
+                    AZ_CONTAINER_NAME: ${{ parameters.azContainerName }}
+                    AZ_CONTAINER_DEST_PATH: ${{ parameters.targetTerraformModule }}/${{ parameters.azContainerDestPath }}
+                  workingDirectory: ${{ parameters.terraformWorkingDirectoryPath }}/${{ parameters.targetTerraformModule }}
+                  displayName: "Destroy: Fetch state"
+
+                - bash: |
+                    ./$TERRAFORM_DESTROY_SCRIPT_PATH
+                  env:
+                    TERRAFORM_DESTROY_SCRIPT_PATH: ${{ parameters.scriptsWorkingDirectoryPath }}/${{ parameters.scriptFiles.terraformDestroy }}
+                    TARGET_TERRAFORM_MODULE_PATH: ${{ parameters.terraformWorkingDirectoryPath }}/${{ parameters.targetTerraformModule }}
+                  displayName: "Destroy: Run"
+
+                - script: |
+                    echo "##vso[build.addbuildtag]status=destroy"
+                  displayName: "Apply tag"
