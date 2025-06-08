@@ -35,10 +35,6 @@ parameters:
     displayName: Target Terraform module.
     type: string
 
-  - name: localDataPath
-    displayName: Path of Terraform's local data
-    type: string
-
   - name: azStorageAccountName
     displayName: Access key id
     type: string
@@ -110,7 +106,6 @@ stages:
                   env:
                     TERRAFORM_PLAN_SCRIPT_PATH: ${{ parameters.scriptsWorkingDirectoryPath }}/${{ parameters.scriptFiles.terraformPlan }}
                     TARGET_TERRAFORM_MODULE_PATH: ${{ parameters.terraformWorkingDirectoryPath }}/${{ parameters.targetTerraformModule }}
-                    LOCAL_DATA_PATH: ${{ parameters.localDataPath }}
                   displayName: "Plan: Run"
 
   - stage: Apply
