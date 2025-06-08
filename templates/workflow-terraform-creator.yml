@@ -146,27 +146,8 @@ stages:
                   env:
                     TERRAFORM_APPLY_SCRIPT_PATH: ${{ parameters.scriptsWorkingDirectoryPath }}/${{ parameters.scriptFiles.terraformApply }}
                     TARGET_TERRAFORM_MODULE_PATH: ${{ parameters.terraformWorkingDirectoryPath }}/${{ parameters.targetTerraformModule }}
-                    LOCAL_DATA_PATH: ${{ parameters.localDataPath }}
                   continueOnError: true
                   displayName: "Apply: Run"
-
-                - bash: |
-                    ls -la
-
-                    azcopy cp "${TARGET_COPY_PATH}" \
-                    "https://${AZ_STORAGE_ACCOUNT_NAME}.blob.core.windows.net/${AZ_CONTAINER_NAME}/${AZ_CONTAINER_DEST_PATH}?${AZ_STORAGE_ACCOUNT_SAS}" \
-                    --exclude-path="${EXCLUDE_PATH}" \
-                    --recursive=true \
-                    --as-subdir=false
-                  env:
-                    TARGET_COPY_PATH: "."
-                    EXCLUDE_PATH: ".terraform"
-                    AZ_STORAGE_ACCOUNT_NAME: ${{ parameters.azStorageAccountName }}
-                    AZ_STORAGE_ACCOUNT_SAS: ${{ parameters.azStorageAccountSas }}
-                    AZ_CONTAINER_NAME: ${{ parameters.azContainerName }}
-                    AZ_CONTAINER_DEST_PATH: ${{ parameters.targetTerraformModule }}/${{ parameters.azContainerDestPath }}
-                  workingDirectory: ${{ parameters.terraformWorkingDirectoryPath }}/${{ parameters.targetTerraformModule }}
-                  displayName: "Apply: Preserve"
 
                 - script: |
                     echo "##vso[build.addbuildtag]status=using"
