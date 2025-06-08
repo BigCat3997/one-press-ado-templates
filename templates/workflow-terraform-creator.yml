@@ -182,22 +182,6 @@ stages:
                     - checkout: terraform-ft-aws
 
                 - bash: |
-                    azcopy cp "https://${AZ_STORAGE_ACCOUNT_NAME}.blob.core.windows.net/${AZ_CONTAINER_NAME}/${AZ_CONTAINER_DEST_PATH}?${AZ_STORAGE_ACCOUNT_SAS}" \
-                    "${TARGET_COPY_PATH}" \
-                    --recursive=true \
-                    --as-subdir=false
-
-                    ls -la
-                  env:
-                    TARGET_COPY_PATH: "."
-                    AZ_STORAGE_ACCOUNT_NAME: ${{ parameters.azStorageAccountName }}
-                    AZ_STORAGE_ACCOUNT_SAS: ${{ parameters.azStorageAccountSas }}
-                    AZ_CONTAINER_NAME: ${{ parameters.azContainerName }}
-                    AZ_CONTAINER_DEST_PATH: ${{ parameters.targetTerraformModule }}/${{ parameters.azContainerDestPath }}
-                  workingDirectory: ${{ parameters.terraformWorkingDirectoryPath }}/${{ parameters.targetTerraformModule }}
-                  displayName: "Destroy: Fetch state"
-
-                - bash: |
                     ./$TERRAFORM_DESTROY_SCRIPT_PATH
                   env:
                     TERRAFORM_DESTROY_SCRIPT_PATH: ${{ parameters.scriptsWorkingDirectoryPath }}/${{ parameters.scriptFiles.terraformDestroy }}
