@@ -25,7 +25,7 @@ parameters:
 
   - name: scriptsWorkingDirectoryPath
     type: string
-    default: one-press-bash/src/functions
+    default: one-press-bash/src
 
   - name: terraformWorkingDirectoryPath
     type: string
