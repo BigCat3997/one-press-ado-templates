@@ -1,0 +1,90 @@
+parameters:
+  - name: runningAgent
+    displayName: Pick agent to run
+    type: string
+    default: ubuntu-latest
+    values:
+      - ubuntu-latest
+      - azp-agent-ubuntu-docker
+      - azp-agent-debian-docker
+      - azp-agent-debian-docker-local
+
+  - name: dependencies
+    type: stepList
+    default:
+      - checkout: self
+
+  - name: terraformVersion
+    displayName: Terraform version
+    type: string
+    default: 1.8.5
+
+  - name: terraformWorkingDirectoryPath
+    displayName: Terraform working directory
+    type: string
+    default: .
+
+  - name: tfVarsFile
+    displayName: Optional tfvars file path
+    type: string
+    default: ""
+
+  - name: runApply
+    displayName: Run terraform apply
+    type: boolean
+    default: false
+
+  - name: extraPlanArgs
+    displayName: Extra args for terraform plan
+    type: string
+    default: ""
+
+stages:
+  - stage: Terraform
+    displayName: Terraform
+    jobs:
+      - job: RunTerraform
+        displayName: Run Terraform
+        workspace:
+          clean: all
+        pool:
+          ${{ if eq(parameters.runningAgent, 'ubuntu-latest') }}:
+            vmImage: ${{ parameters.runningAgent }}
+          ${{ if ne(parameters.runningAgent, 'ubuntu-latest') }}:
+            name: ${{ parameters.runningAgent }}
+        steps:
+          - ${{ parameters.dependencies }}
+
+          - task: TerraformInstaller@1
+            displayName: Install Terraform
+            inputs:
+              terraformVersion: ${{ parameters.terraformVersion }}
+
+          - bash: |
+              set -euo pipefail
+              terraform -chdir="${TF_DIR}" init
+            env:
+              TF_DIR: ${{ parameters.terraformWorkingDirectoryPath }}
+            displayName: Terraform init
+
+          - bash: |
+              set -euo pipefail
+
+              if [ -n "${TF_VARS_FILE}" ]; then
+                terraform -chdir="${TF_DIR}" plan -out=tfplan -var-file="${TF_VARS_FILE}" ${EXTRA_PLAN_ARGS}
+              else
+                terraform -chdir="${TF_DIR}" plan -out=tfplan ${EXTRA_PLAN_ARGS}
+              fi
+            env:
+              TF_DIR: ${{ parameters.terraformWorkingDirectoryPath }}
+              TF_VARS_FILE: ${{ parameters.tfVarsFile }}
+              EXTRA_PLAN_ARGS: ${{ parameters.extraPlanArgs }}
+            displayName: Terraform plan
+
+          - ${{ if eq(parameters.runApply, true) }}:
+              - bash: |
+                  set -euo pipefail
+                  terraform -chdir="${TF_DIR}" apply -auto-approve tfplan
+                env:
+                  TF_DIR: ${{ parameters.terraformWorkingDirectoryPath }}
+                displayName: Terraform apply
