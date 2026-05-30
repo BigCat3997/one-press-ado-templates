@@ -137,6 +137,9 @@ stages:
                 plan -out=tfplan \
                 -var-file="${TF_VARS_FILE}" ${EXTRA_PLAN_ARGS}
             env:
+              AWS_ACCESS_KEY_ID: ${{ parameters.awsAccessKeyId }}
+              AWS_SECRET_ACCESS_KEY: ${{ parameters.awsSecretAccessKey }}
+              AWS_DEFAULT_REGION: ${{ parameters.awsDefaultRegion }}
               TF_DIR: ${{ parameters.tfWorkDir }}
               TF_VARS_FILE: ${{ parameters.tfVarsFile }}
               EXTRA_PLAN_ARGS: ${{ parameters.extraPlanArgs }}
