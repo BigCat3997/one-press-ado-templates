@@ -122,6 +122,9 @@ stages:
               TF_BACKEND_KEY: ${{ parameters.backendAWSKey }}
               TF_BACKEND_REGION: ${{ parameters.backendAWSRegion }}
               TF_BACKEND_DDB: ${{ parameters.backendAWSDynamoDBTable }}
+              AWS_ACCESS_KEY_ID: ${{ parameters.awsAccessKeyId }}
+              AWS_SECRET_ACCESS_KEY: ${{ parameters.awsSecretAccessKey }}
+              AWS_DEFAULT_REGION: ${{ parameters.awsDefaultRegion }}
             displayName: Terraform init
 
           - bash: |
