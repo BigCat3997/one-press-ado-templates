@@ -93,8 +93,8 @@ stages:
             displayName: Run Terraform Init
             inputs:
               provider: "aws"
-              command: "init"
-              commandOptions: "-chdir=${{ parameters.tfWorkDir }}"
+              command: "-chdir=${{ parameters.tfWorkDir }} init"
+              # commandOptions: ""
               backendServiceAWS: ${{ parameters.backendAWSServiceConnection }}
               backendAWSBucketName: ${{ parameters.backendAWSBucket }}
               backendAWSKey: ${{ parameters.backendAWSKey }}
