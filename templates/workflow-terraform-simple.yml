@@ -92,6 +92,11 @@ stages:
             vmImage: ${{ parameters.runningAgent }}
           ${{ if ne(parameters.runningAgent, 'ubuntu-latest') }}:
             name: ${{ parameters.runningAgent }}
+        variables:
+          - name: AWS_ACCESS_KEY_ID
+            value: $(awsAccessKeyId)
+          - name: AWS_SECRET_ACCESS_KEY
+            value: $(awsSecretAccessKey)
         steps:
           - ${{ parameters.dependencies }}
 
