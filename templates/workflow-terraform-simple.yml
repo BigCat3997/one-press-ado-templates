@@ -128,11 +128,15 @@ stages:
           - bash: |
               set -euo pipefail
 
-              if [ -n "${TF_VARS_FILE}" ]; then
-                terraform -chdir="${TF_DIR}" plan -out=tfplan -var-file="${TF_VARS_FILE}" ${EXTRA_PLAN_ARGS}
-              else
-                terraform -chdir="${TF_DIR}" plan -out=tfplan ${EXTRA_PLAN_ARGS}
-              fi
+              # if [ -n "${TF_VARS_FILE}" ]; then
+              # else
+              #   terraform -chdir="${TF_DIR}" plan -out=tfplan ${EXTRA_PLAN_ARGS}
+              # fi
+              ls -la
+
+              terraform -chdir="${TF_DIR}" \
+                plan -out=tfplan \
+                -var-file="${TF_VARS_FILE}" ${EXTRA_PLAN_ARGS}
             env:
               TF_DIR: ${{ parameters.tfWorkDir }}
               TF_VARS_FILE: ${{ parameters.tfVarsFile }}
