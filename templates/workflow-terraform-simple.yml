@@ -40,8 +40,8 @@ parameters:
     default: ""
 
 stages:
-  - stage: Terraform
-    displayName: Terraform
+  - stage: Validate
+    displayName: Validate
     jobs:
       - job: RunTerraform
         displayName: Run Terraform
@@ -59,6 +59,10 @@ stages:
             displayName: Install Terraform
             inputs:
               terraformVersion: ${{ parameters.terraformVersion }}
+
+          - bash: |
+              ls -la
+            displayName: Terraform test
 
           - bash: |
               set -euo pipefail
