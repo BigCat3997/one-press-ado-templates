@@ -111,8 +111,7 @@ stages:
 
           - bash: |
               set -euo pipefail
-              terraform -chdir="${TF_DIR}" init
-              terraform init \
+              terraform -chdir="${TF_DIR}" init \
                 -backend-config="bucket=${TF_BACKEND_BUCKET}" \
                 -backend-config="key=${TF_BACKEND_KEY}" \
                 -backend-config="region=${TF_BACKEND_REGION}" \
