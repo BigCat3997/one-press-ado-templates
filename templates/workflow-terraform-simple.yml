@@ -19,7 +19,7 @@ parameters:
     type: string
     default: 1.8.5
 
-  - name: terraformWorkingDirectoryPath
+  - name: tfWorkDir
     displayName: Terraform working directory
     type: string
     default: .
@@ -64,7 +64,7 @@ stages:
               set -euo pipefail
               terraform -chdir="${TF_DIR}" init
             env:
-              TF_DIR: ${{ parameters.terraformWorkingDirectoryPath }}
+              TF_DIR: ${{ parameters.tfWorkDir }}
             displayName: Terraform init
 
           - bash: |
@@ -76,7 +76,7 @@ stages:
                 terraform -chdir="${TF_DIR}" plan -out=tfplan ${EXTRA_PLAN_ARGS}
               fi
             env:
-              TF_DIR: ${{ parameters.terraformWorkingDirectoryPath }}
+              TF_DIR: ${{ parameters.tfWorkDir }}
               TF_VARS_FILE: ${{ parameters.tfVarsFile }}
               EXTRA_PLAN_ARGS: ${{ parameters.extraPlanArgs }}
             displayName: Terraform plan
@@ -86,5 +86,5 @@ stages:
                   set -euo pipefail
                   terraform -chdir="${TF_DIR}" apply -auto-approve tfplan
                 env:
-                  TF_DIR: ${{ parameters.terraformWorkingDirectoryPath }}
+                  TF_DIR: ${{ parameters.tfWorkDir }}
                 displayName: Terraform apply
