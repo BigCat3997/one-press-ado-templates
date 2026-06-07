@@ -107,36 +107,36 @@ stages:
             inputs:
               terraformVersion: ${{ parameters.terraformVersion }}
 
-          - bash: |
-              set -euo pipefail
-              aws sts get-caller-identity
-              echo $AWS_ACCESS_KEY_ID
-              echo $AWS_SECRET_ACCESS_KEY
-              echo $AWS_REGION
-            env:
-              AWS_ACCESS_KEY_ID: $(awsAccessKeyId)
-              AWS_SECRET_ACCESS_KEY: $(awsSecretAccessKey)
-              AWS_REGION: $(awsRegion)
-            displayName: Verify AWS credentials
+          # - bash: |
+          #     set -euo pipefail
+          #     aws sts get-caller-identity
+          #     echo $AWS_ACCESS_KEY_ID
+          #     echo $AWS_SECRET_ACCESS_KEY
+          #     echo $AWS_REGION
+          #   env:
+          #     AWS_ACCESS_KEY_ID: $(awsAccessKeyId)
+          #     AWS_SECRET_ACCESS_KEY: $(awsSecretAccessKey)
+          #     AWS_REGION: $(awsRegion)
+          #   displayName: Verify AWS credentials
 
-          - bash: |
-              set -euo pipefail
+          # - bash: |
+          #     set -euo pipefail
 
-              terraform -chdir="${TF_DIR}" fmt -check -recursive
-              terraform -chdir="${TF_DIR}" init \
-                -input=false \
-                -backend-config="bucket=${TF_BACKEND_BUCKET}" \
-                -backend-config="key=${TF_BACKEND_KEY}" \
-                -backend-config="region=${TF_BACKEND_REGION}" \
-                -backend-config="dynamodb_table=${TF_BACKEND_DDB}"
-              terraform -chdir="${TF_DIR}" validate
-            env:
-              TF_DIR: ${{ parameters.tfWorkDir }}
-              TF_BACKEND_BUCKET: ${{ parameters.backendAWSBucket }}
-              TF_BACKEND_KEY: ${{ parameters.backendAWSKey }}
-              TF_BACKEND_REGION: ${{ parameters.backendAWSRegion }}
-              TF_BACKEND_DDB: ${{ parameters.backendAWSDynamoDBTable }}
-            displayName: Terraform init
+          #     terraform -chdir="${TF_DIR}" fmt -check -recursive
+          #     terraform -chdir="${TF_DIR}" init \
+          #       -input=false \
+          #       -backend-config="bucket=${TF_BACKEND_BUCKET}" \
+          #       -backend-config="key=${TF_BACKEND_KEY}" \
+          #       -backend-config="region=${TF_BACKEND_REGION}" \
+          #       -backend-config="dynamodb_table=${TF_BACKEND_DDB}"
+          #     terraform -chdir="${TF_DIR}" validate
+          #   env:
+          #     TF_DIR: ${{ parameters.tfWorkDir }}
+          #     TF_BACKEND_BUCKET: ${{ parameters.backendAWSBucket }}
+          #     TF_BACKEND_KEY: ${{ parameters.backendAWSKey }}
+          #     TF_BACKEND_REGION: ${{ parameters.backendAWSRegion }}
+          #     TF_BACKEND_DDB: ${{ parameters.backendAWSDynamoDBTable }}
+          #   displayName: Terraform init
 
           - bash: |
               set -euo pipefail
@@ -147,6 +147,9 @@ stages:
               TF_DIR: ${{ parameters.tfWorkDir }}
               TF_VARS_FILE: ${{ parameters.tfVarsFile }}
               EXTRA_PLAN_ARGS: ${{ parameters.extraPlanArgs }}
+              AWS_ACCESS_KEY_ID: $(awsAccessKeyId)
+              AWS_SECRET_ACCESS_KEY: $(awsSecretAccessKey)
+              AWS_REGION: $(awsRegion)
             displayName: Terraform plan
 
           - ${{ if eq(parameters.runApply, true) }}:
