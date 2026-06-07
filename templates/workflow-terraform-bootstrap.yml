@@ -92,13 +92,13 @@ stages:
             vmImage: ${{ parameters.runningAgent }}
           ${{ if ne(parameters.runningAgent, 'ubuntu-latest') }}:
             name: ${{ parameters.runningAgent }}
-        variables:
-          - name: AWS_ACCESS_KEY_ID
-            value: ${{ parameters.awsAccessKeyId }}
-          - name: AWS_SECRET_ACCESS_KEY
-            value: ${{ parameters.awsSecretAccessKey }}
-          - name: AWS_REGION
-            value: ${{ parameters.awsRegion }}
+        # variables:
+        #   - name: AWS_ACCESS_KEY_ID
+        #     value: ${{ parameters.awsAccessKeyId }}
+        #   - name: AWS_SECRET_ACCESS_KEY
+        #     value: ${{ parameters.awsSecretAccessKey }}
+        #   - name: AWS_REGION
+        #     value: ${{ parameters.awsRegion }}
         steps:
           - ${{ parameters.dependencies }}
 
@@ -108,12 +108,10 @@ stages:
               terraformVersion: ${{ parameters.terraformVersion }}
 
           - bash: |
-              echo $AWS_REGION
-              echo $awsRegion
               set -euo pipefail
               aws sts get-caller-identity
             env:
-              AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+              AWS_ACCESS_KEY_ID: $(awsAccessKeyId)
               AWS_SECRET_ACCESS_KEY: $(awsSecretAccessKey)
               AWS_REGION: $(awsRegion)
             displayName: Verify AWS credentials
