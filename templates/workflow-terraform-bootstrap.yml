@@ -1,0 +1,215 @@
+parameters:
+  - name: runningAgent
+    displayName: Pick agent to run
+    type: string
+    default: ubuntu-latest
+    values:
+      - ubuntu-latest
+      - azp-agent-ubuntu-docker
+      - azp-agent-debian-docker
+      - azp-agent-debian-docker-local
+
+  - name: dependencies
+    type: stepList
+    default:
+      - checkout: self
+
+  - name: terraformVersion
+    displayName: Terraform version
+    type: string
+    default: 1.8.5
+
+  - name: tfWorkDir
+    displayName: Terraform working directory
+    type: string
+    default: .
+
+  - name: tfVarsFile
+    displayName: Optional tfvars file path
+    type: string
+    default: ""
+
+  - name: runApply
+    displayName: Run terraform apply
+    type: boolean
+    default: false
+
+  - name: extraPlanArgs
+    displayName: Extra args for terraform plan
+    type: string
+    default: ""
+
+  - name: backendAWSServiceConnection
+    displayName: AWS service connection for terraform backend
+    type: string
+    default: ""
+
+  - name: backendAWSBucket
+    displayName: AWS S3 bucket for terraform backend
+    type: string
+    default: ""
+
+  - name: backendAWSKey
+    displayName: AWS S3 key for terraform backend
+    type: string
+    default: ""
+
+  - name: backendAWSRegion
+    displayName: AWS region for terraform backend
+    type: string
+    default: ""
+
+  - name: backendAWSDynamoDBTable
+    displayName: AWS DynamoDB table for terraform state locking
+    type: string
+    default: ""
+
+  - name: awsAccessKeyId
+    displayName: AWS Access Key ID for terraform backend
+    type: string
+    default: ""
+
+  - name: awsSecretAccessKey
+    displayName: AWS Secret Access Key for terraform backend
+    type: string
+    default: ""
+
+  - name: awsRegion
+    displayName: AWS Region for terraform backend
+    type: string
+    default: ""
+
+stages:
+  - stage: Plan
+    displayName: Plan
+    jobs:
+      - job: Validate
+        displayName: Run validate
+        workspace:
+          clean: all
+        pool:
+          ${{ if eq(parameters.runningAgent, 'ubuntu-latest') }}:
+            vmImage: ${{ parameters.runningAgent }}
+          ${{ if ne(parameters.runningAgent, 'ubuntu-latest') }}:
+            name: ${{ parameters.runningAgent }}
+        variables:
+          - name: AWS_ACCESS_KEY_ID
+            value: ${{ parameters.awsAccessKeyId }}
+          - name: AWS_SECRET_ACCESS_KEY
+            value: ${{ parameters.awsSecretAccessKey }}
+          - name: AWS_REGION
+            value: ${{ parameters.awsRegion }}
+        steps:
+          - ${{ parameters.dependencies }}
+
+          - task: TerraformInstaller@1
+            displayName: Install Terraform
+            inputs:
+              terraformVersion: ${{ parameters.terraformVersion }}
+
+          - bash: |
+              echo $AWS_REGION
+              echo $awsRegion
+              set -euo pipefail
+              aws sts get-caller-identity
+            displayName: Verify AWS credentials
+
+          - bash: |
+              set -euo pipefail
+
+              terraform -chdir="${TF_DIR}" fmt -check -recursive
+              terraform -chdir="${TF_DIR}" init \
+                -input=false \
+                -backend-config="bucket=${TF_BACKEND_BUCKET}" \
+                -backend-config="key=${TF_BACKEND_KEY}" \
+                -backend-config="region=${TF_BACKEND_REGION}" \
+                -backend-config="dynamodb_table=${TF_BACKEND_DDB}"
+              terraform -chdir="${TF_DIR}" validate
+            env:
+              TF_DIR: ${{ parameters.tfWorkDir }}
+              TF_BACKEND_BUCKET: ${{ parameters.backendAWSBucket }}
+              TF_BACKEND_KEY: ${{ parameters.backendAWSKey }}
+              TF_BACKEND_REGION: ${{ parameters.backendAWSRegion }}
+              TF_BACKEND_DDB: ${{ parameters.backendAWSDynamoDBTable }}
+            displayName: Terraform init
+
+          - bash: |
+              set -euo pipefail
+              terraform -chdir="${TF_DIR}" plan \
+                -input=false \
+                -var-file="${TF_VARS_FILE}" ${EXTRA_PLAN_ARGS}
+            env:
+              TF_DIR: ${{ parameters.tfWorkDir }}
+              TF_VARS_FILE: ${{ parameters.tfVarsFile }}
+              EXTRA_PLAN_ARGS: ${{ parameters.extraPlanArgs }}
+            displayName: Terraform plan
+
+          - ${{ if eq(parameters.runApply, true) }}:
+              - bash: |
+                  set -euo pipefail
+                  terraform -chdir="${TF_DIR}" apply -auto-approve tfplan
+                env:
+                  TF_DIR: ${{ parameters.tfWorkDir }}
+                displayName: Terraform apply
+
+  - stage: Apply
+    displayName: Apply
+    jobs:
+      - job: "ManualApproval"
+        displayName: "Manual approval"
+        pool: server
+        timeoutInMinutes: 60
+        steps:
+          - task: ManualValidation@0
+            timeoutInMinutes: 15
+            inputs:
+              instructions: "Please REVIEW the output of Terraform plan before approving."
+      - job: RunTerraform
+        displayName: Run Terraform
+        workspace:
+          clean: all
+        pool:
+          ${{ if eq(parameters.runningAgent, 'ubuntu-latest') }}:
+            vmImage: ${{ parameters.runningAgent }}
+          ${{ if ne(parameters.runningAgent, 'ubuntu-latest') }}:
+            name: ${{ parameters.runningAgent }}
+        variables:
+          - name: AWS_ACCESS_KEY_ID
+            value: ${{ parameters.awsAccessKeyId }}
+          - name: AWS_SECRET_ACCESS_KEY
+            value: ${{ parameters.awsSecretAccessKey }}
+          - name: AWS_REGION
+            value: ${{ parameters.awsRegion }}
+        steps:
+          - ${{ parameters.dependencies }}
+
+          - task: TerraformInstaller@1
+            displayName: Install Terraform
+            inputs:
+              terraformVersion: ${{ parameters.terraformVersion }}
+
+          - bash: |
+              terraform -chdir="${TF_DIR}" init \
+                -input=false \
+                -backend-config="bucket=${TF_BACKEND_BUCKET}" \
+                -backend-config="key=${TF_BACKEND_KEY}" \
+                -backend-config="region=${TF_BACKEND_REGION}" \
+                -backend-config="dynamodb_table=${TF_BACKEND_DDB}"
+            env:
+              TF_DIR: ${{ parameters.tfWorkDir }}
+              TF_BACKEND_BUCKET: ${{ parameters.backendAWSBucket }}
+              TF_BACKEND_KEY: ${{ parameters.backendAWSKey }}
+              TF_BACKEND_REGION: ${{ parameters.backendAWSRegion }}
+              TF_BACKEND_DDB: ${{ parameters.backendAWSDynamoDBTable }}
+            displayName: Terraform init
+
+          - bash: |
+              set -euo pipefail
+              terraform -chdir="${TF_DIR}" apply --auto-approve \
+                -input=false \
+                -var-file="${TF_VARS_FILE}" ${EXTRA_PLAN_ARGS}
+            env:
+              TF_DIR: ${{ parameters.tfWorkDir }}
+              TF_VARS_FILE: ${{ parameters.tfVarsFile }}
+              EXTRA_PLAN_ARGS: ${{ parameters.extraPlanArgs }}
+            displayName: Terraform apply
