@@ -112,6 +112,9 @@ stages:
               echo $awsRegion
               set -euo pipefail
               aws sts get-caller-identity
+            env:
+              AWS_ACCESS_KEY_ID: ${{ parameters.awsAccessKeyId }}
+              AWS_SECRET_ACCESS_KEY: ${{ parameters.awsSecretAccessKey }}
             displayName: Verify AWS credentials
 
           - bash: |
