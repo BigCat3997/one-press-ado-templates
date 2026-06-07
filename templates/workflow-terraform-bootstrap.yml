@@ -110,6 +110,9 @@ stages:
           - bash: |
               set -euo pipefail
               aws sts get-caller-identity
+              echo $AWS_ACCESS_KEY_ID
+              echo $AWS_SECRET_ACCESS_KEY
+              echo $AWS_REGION
             env:
               AWS_ACCESS_KEY_ID: $(awsAccessKeyId)
               AWS_SECRET_ACCESS_KEY: $(awsSecretAccessKey)
