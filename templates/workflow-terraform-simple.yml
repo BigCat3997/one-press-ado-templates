@@ -39,11 +39,6 @@ parameters:
     type: string
     default: ""
 
-  - name: backendAWSServiceConnection
-    displayName: AWS service connection for terraform backend
-    type: string
-    default: ""
-
   - name: backendAWSBucket
     displayName: AWS S3 bucket for terraform backend
     type: string
@@ -144,7 +139,7 @@ stages:
             env:
               TF_DIR: ${{ parameters.tfWorkDir }}
               TF_VARS_FILE: ${{ parameters.tfVarsFile }}
-              EXTRA_PLAN_ARGS: ${{ parameters.extraPlanArgs }}
+              EXTRA_PLAN_ARGS: '-var="s3_tf_state_bucket_name=${{ parameters.backendAWSBucket }}" -var="terraform_locks_table_name=bc-ddbt-terraformstate-prd-1"'
               AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
               AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
             displayName: Terraform plan
@@ -224,11 +219,11 @@ stages:
             env:
               TF_DIR: ${{ parameters.tfWorkDir }}
               TF_VARS_FILE: ${{ parameters.tfVarsFile }}
-              EXTRA_PLAN_ARGS: ${{ parameters.extraPlanArgs }}
               AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
               AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
               TF_BACKEND_BUCKET: ${{ parameters.backendAWSBucket }}
               TF_BACKEND_KEY: ${{ parameters.backendAWSKey }}
               TF_BACKEND_REGION: ${{ parameters.backendAWSRegion }}
               TF_BACKEND_DDB: ${{ parameters.backendAWSDynamoDBTable }}
+              EXTRA_PLAN_ARGS: '-var="s3_tf_state_bucket_name=${{ parameters.backendAWSBucket }}" -var="terraform_locks_table_name=bc-ddbt-terraformstate-prd-1"'
             displayName: Terraform apply
