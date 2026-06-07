@@ -108,6 +108,8 @@ stages:
               terraformVersion: ${{ parameters.terraformVersion }}
 
           - bash: |
+              echo $AWS_ACCESS_KEY_ID
+              echo $AWS_REGION
               set -euo pipefail
               aws sts get-caller-identity
             displayName: Verify AWS credentials
