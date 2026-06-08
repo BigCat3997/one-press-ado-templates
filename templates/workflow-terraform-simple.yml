@@ -29,20 +29,20 @@ parameters:
     type: string
     default: ""
 
-  - name: runApply
-    displayName: Run terraform apply
-    type: boolean
-    default: false
+  # - name: runApply
+  #   displayName: Run terraform apply
+  #   type: boolean
+  #   default: false
 
   - name: runMigrateState
     displayName: Run final step (terraform migrate-state)
     type: boolean
     default: false
 
-  - name: extraPlanArgs
-    displayName: Extra args for terraform plan
-    type: string
-    default: ""
+  # - name: extraPlanArgs
+  #   displayName: Extra args for terraform plan
+  #   type: string
+  #   default: ""
 
   - name: backendAWSBucket
     displayName: AWS S3 bucket for terraform backend
