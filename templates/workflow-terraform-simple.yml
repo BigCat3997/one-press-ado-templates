@@ -106,11 +106,10 @@ stages:
 
           - bash: |
               set -euo pipefail
-
-              terraform -chdir="${TF_DIR}" fmt -check -recursive
-              terraform -chdir="${TF_DIR}" validate 
               terraform -chdir="${TF_DIR}" init \
                 -input=false
+              terraform -chdir="${TF_DIR}" fmt -check -recursive
+              terraform -chdir="${TF_DIR}" validate
             env:
               TF_DIR: ${{ parameters.tfWorkDir }}
               AWS_ACCESS_KEY_ID: ${{ parameters.awsAccessKeyId }}
