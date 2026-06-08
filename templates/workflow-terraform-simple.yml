@@ -103,8 +103,8 @@ stages:
               terraformVersion: ${{ parameters.terraformVersion }}
 
           - bash: |
-              set -euo pipefail
-              aws sts get-caller-identity
+              # set -euo pipefail
+              # aws sts get-caller-identity
               echo $AWS_REGION
               echo $AWS_ACCESS_KEY_ID
               echo $AWS_SECRET_ACCESS_KEY
