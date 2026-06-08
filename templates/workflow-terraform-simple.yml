@@ -121,11 +121,14 @@ stages:
               set -euo pipefail
               terraform -chdir="${TF_DIR}" plan \
                 -input=false \
-                -var-file="${TF_VARS_FILE}" ${EXTRA_PLAN_ARGS}
+                -var-file="${TF_VARS_FILE}" \
+                -var="tf_state_s3_bucket_name=${TF_STATE_BUCKET}" \
+                -var="tf_locks_table_name=${TF_LOCKS_TABLE}"
             env:
               TF_DIR: ${{ parameters.tfWorkDir }}
               TF_VARS_FILE: ${{ parameters.tfVarsFile }}
-              EXTRA_PLAN_ARGS: '-var="tf_state_s3_bucket_name=${{ parameters.backendAWSBucket }}" -var="tf_locks_table_name=${{ parameters.backendAWSDynamoDBTable }}"'
+              TF_STATE_BUCKET: ${{ parameters.backendAWSBucket }}
+              TF_LOCKS_TABLE: ${{ parameters.backendAWSDynamoDBTable }}
               AWS_ACCESS_KEY_ID: ${{ parameters.awsAccessKeyId }}
               AWS_SECRET_ACCESS_KEY: ${{ parameters.awsSecretAccessKey }}
               AWS_REGION: ${{ parameters.awsRegion }}
