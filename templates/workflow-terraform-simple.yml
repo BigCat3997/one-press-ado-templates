@@ -132,8 +132,8 @@ stages:
             env:
               TF_DIR: ${{ parameters.tfWorkDir }}
               TF_VARS_FILE: ${{ parameters.tfVarsFile }}
-              TF_VAR_tf_state_s3_bucket_name: ${{ parameters.backendAWSBucket }}
-              TF_VAR_tf_locks_table_name: ${{ parameters.backendAWSDynamoDBTable }}
+              TF_STATE_BUCKET: ${{ parameters.backendAWSBucket }}
+              TF_LOCKS_TABLE: ${{ parameters.backendAWSDynamoDBTable }}
               AWS_ACCESS_KEY_ID: ${{ parameters.awsAccessKeyId }}
               AWS_SECRET_ACCESS_KEY: ${{ parameters.awsSecretAccessKey }}
               AWS_REGION: ${{ parameters.awsRegion }}
