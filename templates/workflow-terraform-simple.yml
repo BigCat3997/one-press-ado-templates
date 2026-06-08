@@ -108,21 +108,14 @@ stages:
               set -euo pipefail
 
               terraform -chdir="${TF_DIR}" fmt -check -recursive
+              terraform -chdir="${TF_DIR}" validate 
               terraform -chdir="${TF_DIR}" init \
                 -input=false
-                # -backend-config="bucket=${TF_BACKEND_BUCKET}" \
-                # -backend-config="key=${TF_BACKEND_KEY}" \
-                # -backend-config="region=${TF_BACKEND_REGION}" \
-                # -backend-config="dynamodb_table=${TF_BACKEND_DDB}"
-              terraform -chdir="${TF_DIR}" validate
             env:
               TF_DIR: ${{ parameters.tfWorkDir }}
-              AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
-              AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
-              # TF_BACKEND_BUCKET: ${{ parameters.backendAWSBucket }}
-              # TF_BACKEND_KEY: ${{ parameters.backendAWSKey }}
-              # TF_BACKEND_REGION: ${{ parameters.backendAWSRegion }}
-              # TF_BACKEND_DDB: ${{ parameters.backendAWSDynamoDBTable }}
+              AWS_ACCESS_KEY_ID: ${{ parameters.awsAccessKeyId }}
+              AWS_SECRET_ACCESS_KEY: ${{ parameters.awsSecretAccessKey }}
+              AWS_REGION: ${{ parameters.awsRegion }}
             displayName: Terraform init
 
           - bash: |
@@ -133,9 +126,10 @@ stages:
             env:
               TF_DIR: ${{ parameters.tfWorkDir }}
               TF_VARS_FILE: ${{ parameters.tfVarsFile }}
-              EXTRA_PLAN_ARGS: '-var="s3_tf_state_bucket_name=${{ parameters.backendAWSBucket }}" -var="terraform_locks_table_name=bc-ddbt-terraformstate-prd-1"'
-              AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
-              AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+              EXTRA_PLAN_ARGS: '-var="s3_tf_state_bucket_name=${{ parameters.backendAWSBucket }}" -var="terraform_locks_table_name=${{ parameters.backendAWSDynamoDBTable }}"'
+              AWS_ACCESS_KEY_ID: ${{ parameters.awsAccessKeyId }}
+              AWS_SECRET_ACCESS_KEY: ${{ parameters.awsSecretAccessKey }}
+              AWS_REGION: ${{ parameters.awsRegion }}
             displayName: Terraform plan
 
   - stage: Apply
@@ -180,12 +174,9 @@ stages:
                 -input=false
             env:
               TF_DIR: ${{ parameters.tfWorkDir }}
-              AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
-              AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
-              # TF_BACKEND_BUCKET: ${{ parameters.backendAWSBucket }}
-              # TF_BACKEND_KEY: ${{ parameters.backendAWSKey }}
-              # TF_BACKEND_REGION: ${{ parameters.backendAWSRegion }}
-              # TF_BACKEND_DDB: ${{ parameters.backendAWSDynamoDBTable }}
+              AWS_ACCESS_KEY_ID: ${{ parameters.awsAccessKeyId }}
+              AWS_SECRET_ACCESS_KEY: ${{ parameters.awsSecretAccessKey }}
+              AWS_REGION: ${{ parameters.awsRegion }}
             displayName: Terraform init
 
           - bash: |
@@ -197,8 +188,9 @@ stages:
               TF_DIR: ${{ parameters.tfWorkDir }}
               TF_VARS_FILE: ${{ parameters.tfVarsFile }}
               EXTRA_PLAN_ARGS: ${{ parameters.extraPlanArgs }}
-              AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
-              AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+              AWS_ACCESS_KEY_ID: ${{ parameters.awsAccessKeyId }}
+              AWS_SECRET_ACCESS_KEY: ${{ parameters.awsSecretAccessKey }}
+              AWS_REGION: ${{ parameters.awsRegion }}
             displayName: Terraform apply
 
           - bash: |
@@ -213,11 +205,12 @@ stages:
             env:
               TF_DIR: ${{ parameters.tfWorkDir }}
               TF_VARS_FILE: ${{ parameters.tfVarsFile }}
-              AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
-              AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+              AWS_ACCESS_KEY_ID: ${{ parameters.awsAccessKeyId }}
+              AWS_SECRET_ACCESS_KEY: ${{ parameters.awsSecretAccessKey }}
+              AWS_REGION: ${{ parameters.awsRegion }}
               TF_BACKEND_BUCKET: ${{ parameters.backendAWSBucket }}
               TF_BACKEND_KEY: ${{ parameters.backendAWSKey }}
               TF_BACKEND_REGION: ${{ parameters.backendAWSRegion }}
               TF_BACKEND_DDB: ${{ parameters.backendAWSDynamoDBTable }}
-              EXTRA_PLAN_ARGS: '-var="s3_tf_state_bucket_name=${{ parameters.backendAWSBucket }}" -var="terraform_locks_table_name=bc-ddbt-terraformstate-prd-1"'
+              EXTRA_PLAN_ARGS: '-var="s3_tf_state_bucket_name=${{ parameters.backendAWSBucket }}" -var="terraform_locks_table_name=${{ parameters.backendAWSDynamoDBTable }}"'
             displayName: Terraform apply
