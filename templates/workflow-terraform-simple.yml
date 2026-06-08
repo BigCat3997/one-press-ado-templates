@@ -137,15 +137,15 @@ stages:
   - stage: Apply
     displayName: Apply
     jobs:
-      - job: "ManualApproval"
-        displayName: "Manual approval"
-        pool: server
-        timeoutInMinutes: 60
-        steps:
-          - task: ManualValidation@0
-            timeoutInMinutes: 15
-            inputs:
-              instructions: "Please REVIEW the output of Terraform plan before approving."
+      # - job: "ManualApproval"
+      #   displayName: "Manual approval"
+      #   pool: server
+      #   timeoutInMinutes: 60
+      #   steps:
+      #     - task: ManualValidation@0
+      #       timeoutInMinutes: 15
+      #       inputs:
+      #         instructions: "Please REVIEW the output of Terraform plan before approving."
       - job: RunTerraform
         displayName: Run Terraform
         workspace:
@@ -197,6 +197,16 @@ stages:
               AWS_SECRET_ACCESS_KEY: ${{ parameters.awsSecretAccessKey }}
               AWS_REGION: ${{ parameters.awsRegion }}
             displayName: Terraform apply
+
+          - bash: |
+              cat > "${TF_DIR}/backend.tf" <<EOF
+              terraform {
+                backend "s3" {}
+              }
+              EOF
+            env:
+              TF_DIR: ${{ parameters.tfWorkDir }}
+            displayName: Terraform create backend config file
 
           - bash: |
               terraform init \
