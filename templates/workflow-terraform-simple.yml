@@ -211,6 +211,8 @@ stages:
               TF_DIR: ${{ parameters.tfWorkDir }}
               TF_VARS_FILE: ${{ parameters.tfVarsFile }}
               TF_STATE_BUCKET: ${{ parameters.backendAWSBucket }}
+              TF_BACKEND_KEY: ${{ parameters.backendAWSKey }}
+              TF_BACKEND_REGION: ${{ parameters.backendAWSRegion }}
               TF_LOCKS_TABLE: ${{ parameters.backendAWSDynamoDBTable }}
               AWS_ACCESS_KEY_ID: ${{ parameters.awsAccessKeyId }}
               AWS_SECRET_ACCESS_KEY: ${{ parameters.awsSecretAccessKey }}
