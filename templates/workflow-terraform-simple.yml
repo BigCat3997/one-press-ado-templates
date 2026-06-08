@@ -121,14 +121,12 @@ stages:
               set -euo pipefail
               terraform -chdir="${TF_DIR}" plan \
                 -input=false \
-                -var-file="${TF_VARS_FILE}" \
-                -var="tf_state_s3_bucket_name=${TF_STATE_BUCKET}" \
-                -var="tf_locks_table_name=${TF_LOCKS_TABLE}"
+                -var-file="${TF_VARS_FILE}"
             env:
               TF_DIR: ${{ parameters.tfWorkDir }}
               TF_VARS_FILE: ${{ parameters.tfVarsFile }}
-              TF_STATE_BUCKET: ${{ parameters.backendAWSBucket }}
-              TF_LOCKS_TABLE: ${{ parameters.backendAWSDynamoDBTable }}
+              TF_VAR_tf_state_s3_bucket_name: ${{ parameters.backendAWSBucket }}
+              TF_VAR_tf_locks_table_name: ${{ parameters.backendAWSDynamoDBTable }}
               AWS_ACCESS_KEY_ID: ${{ parameters.awsAccessKeyId }}
               AWS_SECRET_ACCESS_KEY: ${{ parameters.awsSecretAccessKey }}
               AWS_REGION: ${{ parameters.awsRegion }}
@@ -185,14 +183,12 @@ stages:
               set -euo pipefail
               terraform -chdir="${TF_DIR}" apply --auto-approve \
                 -input=false \
-                -var-file="${TF_VARS_FILE}" \
-                -var="tf_state_s3_bucket_name=${TF_STATE_BUCKET}" \
-                -var="tf_locks_table_name=${TF_LOCKS_TABLE}"
+                -var-file="${TF_VARS_FILE}"
             env:
               TF_DIR: ${{ parameters.tfWorkDir }}
               TF_VARS_FILE: ${{ parameters.tfVarsFile }}
-              TF_STATE_BUCKET: ${{ parameters.backendAWSBucket }}
-              TF_LOCKS_TABLE: ${{ parameters.backendAWSDynamoDBTable }}
+              TF_VAR_tf_state_s3_bucket_name: ${{ parameters.backendAWSBucket }}
+              TF_VAR_tf_locks_table_name: ${{ parameters.backendAWSDynamoDBTable }}
               AWS_ACCESS_KEY_ID: ${{ parameters.awsAccessKeyId }}
               AWS_SECRET_ACCESS_KEY: ${{ parameters.awsSecretAccessKey }}
               AWS_REGION: ${{ parameters.awsRegion }}
