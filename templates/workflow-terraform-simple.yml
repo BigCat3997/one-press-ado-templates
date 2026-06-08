@@ -34,6 +34,11 @@ parameters:
     type: boolean
     default: false
 
+  - name: runMigrateState
+    displayName: Run final step (terraform migrate-state)
+    type: boolean
+    default: false
+
   - name: extraPlanArgs
     displayName: Extra args for terraform plan
     type: string
@@ -121,7 +126,9 @@ stages:
               set -euo pipefail
               terraform -chdir="${TF_DIR}" plan \
                 -input=false \
-                -var-file="${TF_VARS_FILE}"
+                -var-file="${TF_VARS_FILE}" \
+                -var="tf_state_s3_bucket_name=${TF_STATE_BUCKET}" \
+                -var="tf_locks_table_name=${TF_LOCKS_TABLE}"
             env:
               TF_DIR: ${{ parameters.tfWorkDir }}
               TF_VARS_FILE: ${{ parameters.tfVarsFile }}
@@ -183,12 +190,14 @@ stages:
               set -euo pipefail
               terraform -chdir="${TF_DIR}" apply --auto-approve \
                 -input=false \
-                -var-file="${TF_VARS_FILE}"
+                -var-file="${TF_VARS_FILE}" \
+                -var="tf_state_s3_bucket_name=${TF_STATE_BUCKET}" \
+                -var="tf_locks_table_name=${TF_LOCKS_TABLE}"
             env:
               TF_DIR: ${{ parameters.tfWorkDir }}
               TF_VARS_FILE: ${{ parameters.tfVarsFile }}
-              TF_VAR_tf_state_s3_bucket_name: ${{ parameters.backendAWSBucket }}
-              TF_VAR_tf_locks_table_name: ${{ parameters.backendAWSDynamoDBTable }}
+              TF_STATE_BUCKET: ${{ parameters.backendAWSBucket }}
+              TF_LOCKS_TABLE: ${{ parameters.backendAWSDynamoDBTable }}
               AWS_ACCESS_KEY_ID: ${{ parameters.awsAccessKeyId }}
               AWS_SECRET_ACCESS_KEY: ${{ parameters.awsSecretAccessKey }}
               AWS_REGION: ${{ parameters.awsRegion }}
@@ -204,23 +213,24 @@ stages:
               TF_DIR: ${{ parameters.tfWorkDir }}
             displayName: Terraform create backend config file
 
-          - bash: |
-              terraform -chdir="${TF_DIR}" init \
-              -input=false \
-              -migrate-state \
-              -force-copy \
-              -backend-config="bucket=${TF_STATE_BUCKET}" \
-              -backend-config="key=${TF_BACKEND_KEY}" \
-              -backend-config="region=${TF_BACKEND_REGION}" \
-              -backend-config="dynamodb_table=${TF_LOCKS_TABLE}"
-            env:
-              TF_DIR: ${{ parameters.tfWorkDir }}
-              TF_VARS_FILE: ${{ parameters.tfVarsFile }}
-              TF_STATE_BUCKET: ${{ parameters.backendAWSBucket }}
-              TF_BACKEND_KEY: ${{ parameters.backendAWSKey }}
-              TF_BACKEND_REGION: ${{ parameters.backendAWSRegion }}
-              TF_LOCKS_TABLE: ${{ parameters.backendAWSDynamoDBTable }}
-              AWS_ACCESS_KEY_ID: ${{ parameters.awsAccessKeyId }}
-              AWS_SECRET_ACCESS_KEY: ${{ parameters.awsSecretAccessKey }}
-              AWS_REGION: ${{ parameters.awsRegion }}
-            displayName: Terraform migrate-state
+          - ${{ if eq(parameters.runMigrateState, true) }}:
+              - bash: |
+                  terraform -chdir="${TF_DIR}" init \
+                  -input=false \
+                  -migrate-state \
+                  -force-copy \
+                  -backend-config="bucket=${TF_STATE_BUCKET}" \
+                  -backend-config="key=${TF_BACKEND_KEY}" \
+                  -backend-config="region=${TF_BACKEND_REGION}" \
+                  -backend-config="dynamodb_table=${TF_LOCKS_TABLE}"
+                env:
+                  TF_DIR: ${{ parameters.tfWorkDir }}
+                  TF_VARS_FILE: ${{ parameters.tfVarsFile }}
+                  TF_STATE_BUCKET: ${{ parameters.backendAWSBucket }}
+                  TF_BACKEND_KEY: ${{ parameters.backendAWSKey }}
+                  TF_BACKEND_REGION: ${{ parameters.backendAWSRegion }}
+                  TF_LOCKS_TABLE: ${{ parameters.backendAWSDynamoDBTable }}
+                  AWS_ACCESS_KEY_ID: ${{ parameters.awsAccessKeyId }}
+                  AWS_SECRET_ACCESS_KEY: ${{ parameters.awsSecretAccessKey }}
+                  AWS_REGION: ${{ parameters.awsRegion }}
+                displayName: Terraform migrate-state
