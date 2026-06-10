@@ -39,10 +39,13 @@ parameters:
     type: boolean
     default: false
 
-  # - name: extraPlanArgs
-  #   displayName: Extra args for terraform plan
-  #   type: string
-  #   default: ""
+  - name: createSSHKey
+    type: boolean
+    default: false
+
+  - name: sshSecretName
+    type: string
+    default: ""
 
   - name: backendAWSBucket
     displayName: AWS S3 bucket for terraform backend
@@ -80,6 +83,25 @@ parameters:
     default: ""
 
 stages:
+  - stage: Prepare
+    displayName: Prepare Secrets
+    condition: eq('${{ parameters.createSSHKey }}', true)
+    jobs:
+      - job: GenerateSSHKey
+        displayName: Generate SSH Key
+
+        steps:
+          - bash: |
+              set -euo pipefail
+
+              ssh-keygen \
+                -t ed25519 \
+                -N "" \
+                -f id_ed25519
+
+              ls -la
+            displayName: Generate SSH key
+
   - stage: Plan
     displayName: Plan
     jobs:
