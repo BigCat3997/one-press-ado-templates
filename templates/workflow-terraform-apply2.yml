@@ -127,7 +127,8 @@ stages:
                 -C "${SSH_KEY_NAME}"
 
               echo "Uploading private key to AWS Secrets Manager..."
-
+              aws sts get-caller-identity
+              set -euo pipefail
               aws secretsmanager create-secret \
                 --name "${SSH_KEY_NAME}-private-key" \
                 --secret-string "file://${PRIVATE_KEY_FILE}" \
