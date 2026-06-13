@@ -34,23 +34,6 @@ parameters:
   #   type: boolean
   #   default: false
 
-  - name: runMigrateState
-    displayName: Run final step (terraform migrate-state)
-    type: boolean
-    default: false
-
-  - name: createSSHKey
-    type: boolean
-    default: false
-
-  - name: sshSecretName
-    type: string
-    default: ""
-
-  - name: sshKeyName
-    type: string
-    default: ""
-
   - name: backendAWSBucket
     displayName: AWS S3 bucket for terraform backend
     type: string
