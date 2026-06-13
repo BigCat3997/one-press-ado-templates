@@ -98,14 +98,10 @@ stages:
 
               # echo "SSH keys uploaded successfully."
             env:
-              # AWS_ACCESS_KEY_ID: ${{ parameters.awsAccessKeyId }}
-              # AWS_SECRET_ACCESS_KEY: ${{ parameters.awsSecretAccessKey }}
-              # AWS_REGION: ${{ parameters.awsRegion }}
               SSH_KEY_NAME: ${{ parameters.sshKeyName }}
             displayName: Generate and upload SSH keys
 
           - bash: |
-              echo "Uploading private key to AWS Secrets Manager..."
               aws sts get-caller-identity
             env:
               AWS_ACCESS_KEY_ID: ${{ parameters.awsAccessKeyId }}
@@ -115,6 +111,9 @@ stages:
             displayName: Verify AWS Credentials
 
           - bash: |
+              PRIVATE_KEY_FILE=".ssh-temp/id_ed25519"
+              PUBLIC_KEY_FILE=".ssh-temp/id_ed25519.pub"
+
               echo "Uploading private key to AWS Secrets Manager..."
               aws secretsmanager create-secret \
                 --name "${SSH_KEY_NAME}-private-key" \
