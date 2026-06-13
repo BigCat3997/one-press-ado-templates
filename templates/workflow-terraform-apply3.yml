@@ -1,0 +1,207 @@
+parameters:
+  - name: runningAgent
+    displayName: Pick agent to run
+    type: string
+    default: ubuntu-latest
+    values:
+      - ubuntu-latest
+      - azp-agent-ubuntu-docker
+      - azp-agent-debian-docker
+      - azp-agent-debian-docker-local
+
+  - name: dependencies
+    type: stepList
+    default:
+      - checkout: self
+
+  - name: terraformVersion
+    displayName: Terraform version
+    type: string
+    default: 1.8.5
+
+  - name: tfWorkDir
+    displayName: Terraform working directory
+    type: string
+    default: .
+
+  - name: tfVarsFile
+    displayName: Optional tfvars file path
+    type: string
+    default: ""
+
+  # - name: runApply
+  #   displayName: Run terraform apply
+  #   type: boolean
+  #   default: false
+
+stages:
+  - stage: Plan
+    displayName: Plan
+    jobs:
+      - job: Validate
+        displayName: Run validate
+        workspace:
+          clean: all
+        pool:
+          ${{ if eq(parameters.runningAgent, 'ubuntu-latest') }}:
+            vmImage: ${{ parameters.runningAgent }}
+          ${{ if ne(parameters.runningAgent, 'ubuntu-latest') }}:
+            name: ${{ parameters.runningAgent }}
+        steps:
+          - ${{ parameters.dependencies }}
+
+          - task: TerraformInstaller@1
+            displayName: Install Terraform
+            inputs:
+              terraformVersion: ${{ parameters.terraformVersion }}
+
+          # - bash: |
+          #     cat > "${TF_DIR}/backend.tf" <<EOF
+          #     terraform {
+          #       backend "s3" {}
+          #     }
+          #     EOF
+          #   env:
+          #     TF_DIR: ${{ parameters.tfWorkDir }}
+          #   displayName: Terraform create backend config file
+
+          - bash: |
+              terraform -chdir="${TF_DIR}" init \
+              -input=false
+              # -backend-config="bucket=${TF_STATE_BUCKET}" \
+              # -backend-config="key=${TF_BACKEND_KEY}" \
+              # -backend-config="region=${TF_BACKEND_REGION}" \
+              # -backend-config="dynamodb_table=${TF_LOCKS_TABLE}"
+
+              terraform -chdir="${TF_DIR}" fmt -check -recursive
+              terraform -chdir="${TF_DIR}" validate
+            env:
+              TF_DIR: ${{ parameters.tfWorkDir }}
+              TF_VARS_FILE: ${{ parameters.tfVarsFile }}
+              # TF_STATE_BUCKET: ${{ parameters.backendAWSBucket }}
+              # TF_BACKEND_KEY: ${{ parameters.backendAWSKey }}
+              # TF_BACKEND_REGION: ${{ parameters.backendAWSRegion }}
+              # TF_LOCKS_TABLE: ${{ parameters.backendAWSDynamoDBTable }}
+            displayName: Terraform migrate-state
+
+          - bash: |
+              set -euo pipefail
+              terraform -chdir="${TF_DIR}" plan \
+                -input=false \
+                -var-file="${TF_VARS_FILE}"
+            env:
+              TF_DIR: ${{ parameters.tfWorkDir }}
+              TF_VARS_FILE: ${{ parameters.tfVarsFile }}
+            displayName: Terraform plan
+
+  - stage: Checkov
+    displayName: Checkov Scan
+    dependsOn: Plan
+    jobs:
+      - job: ScanTerraform
+        displayName: Run Checkov
+        workspace:
+          clean: all
+        pool:
+          ${{ if eq(parameters.runningAgent, 'ubuntu-latest') }}:
+            vmImage: ${{ parameters.runningAgent }}
+          ${{ if ne(parameters.runningAgent, 'ubuntu-latest') }}:
+            name: ${{ parameters.runningAgent }}
+        steps:
+          - ${{ parameters.dependencies }}
+
+          - bash: |
+              set -euo pipefail
+              python3 -m pip install --upgrade pip
+              python3 -m pip install checkov
+            displayName: Install Checkov
+
+          - bash: |
+              set -euo pipefail
+              mkdir -p "$(Build.ArtifactStagingDirectory)"
+              checkov -d "${TF_DIR}" --soft-fail -o junitxml > "$(Build.ArtifactStagingDirectory)/checkov-report.xml"
+            env:
+              TF_DIR: ${{ parameters.tfWorkDir }}
+            displayName: Run Checkov and generate JUnit report
+
+          - task: PublishTestResults@2
+            displayName: Publish Checkov report
+            inputs:
+              testResultsFormat: JUnit
+              testResultsFiles: $(Build.ArtifactStagingDirectory)/checkov-report.xml
+              testRunTitle: Checkov IaC Scan
+              failTaskOnFailedTests: false
+            condition: always()
+
+          - task: PublishPipelineArtifact@1
+            displayName: Publish Checkov artifact
+            inputs:
+              targetPath: $(Build.ArtifactStagingDirectory)/checkov-report.xml
+              artifact: checkov-report
+              publishLocation: pipeline
+            condition: always()
+
+  - stage: Apply
+    displayName: Apply
+    jobs:
+      # - job: "ManualApproval"
+      #   displayName: "Manual approval"
+      #   pool: server
+      #   timeoutInMinutes: 60
+      #   steps:
+      #     - task: ManualValidation@0
+      #       timeoutInMinutes: 15
+      #       inputs:
+      #         instructions: "Please REVIEW the output of Terraform plan before approving."
+      - job: RunTerraform
+        displayName: Run Terraform
+        workspace:
+          clean: all
+        pool:
+          ${{ if eq(parameters.runningAgent, 'ubuntu-latest') }}:
+            vmImage: ${{ parameters.runningAgent }}
+          ${{ if ne(parameters.runningAgent, 'ubuntu-latest') }}:
+            name: ${{ parameters.runningAgent }}
+        steps:
+          - ${{ parameters.dependencies }}
+
+          - task: TerraformInstaller@1
+            displayName: Install Terraform
+            inputs:
+              terraformVersion: ${{ parameters.terraformVersion }}
+
+          # - bash: |
+          #     cat > "${TF_DIR}/backend.tf" <<EOF
+          #     terraform {
+          #       backend "s3" {}
+          #     }
+          #     EOF
+          #   env:
+          #     TF_DIR: ${{ parameters.tfWorkDir }}
+          #   displayName: Terraform create backend config file
+
+          - bash: |
+              terraform -chdir="${TF_DIR}" init \
+              -input=false
+              # -backend-config="bucket=${TF_STATE_BUCKET}" \
+              # -backend-config="key=${TF_BACKEND_KEY}" \
+              # -backend-config="region=${TF_BACKEND_REGION}" \
+              # -backend-config="dynamodb_table=${TF_LOCKS_TABLE}"
+            env:
+              TF_DIR: ${{ parameters.tfWorkDir }}
+              TF_VARS_FILE: ${{ parameters.tfVarsFile }}
+              # TF_STATE_BUCKET: ${{ parameters.backendAWSBucket }}
+              # TF_BACKEND_KEY: ${{ parameters.backendAWSKey }}
+              # TF_BACKEND_REGION: ${{ parameters.backendAWSRegion }}
+              # TF_LOCKS_TABLE: ${{ parameters.backendAWSDynamoDBTable }}
+            displayName: Terraform migrate-state
+
+          - bash: |
+              set -euo pipefail
+              terraform -chdir="${TF_DIR}" apply --auto-approve \
+                -input=false \
+                -var-file="${TF_VARS_FILE}"
+            env:
+              TF_DIR: ${{ parameters.tfWorkDir }}
+              TF_VARS_FILE: ${{ parameters.tfVarsFile }}
+            displayName: Terraform apply
