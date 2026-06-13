@@ -55,7 +55,6 @@ parameters:
 stages:
   - stage: Prepare
     displayName: Prepare Secrets
-    condition: eq('${{ parameters.createSSHKey }}', true)
     jobs:
       - job: GenerateSSHKey
         displayName: Generate SSH Key
