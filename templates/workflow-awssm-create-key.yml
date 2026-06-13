@@ -29,13 +29,21 @@ parameters:
     type: string
     default: ""
 
-  - name: sshSecretName
+  - name: sshKeygenComment
     type: string
     default: ""
 
-  - name: sshKeyName
+  - name: sshDir
     type: string
-    default: ""
+    default: ".ssh-temp"
+
+  - name: privateKeyName
+    type: string
+    default: "ed25519"
+
+  - name: publicKeyName
+    type: string
+    default: "ed25519.pub"
 
   - name: awsAccessKeyId
     displayName: AWS Access Key ID for terraform backend
@@ -61,9 +69,9 @@ stages:
 
         steps:
           - bash: |
-              mkdir -p .ssh-temp
-              PRIVATE_KEY_FILE=".ssh-temp/id_ed25519"
-              PUBLIC_KEY_FILE=".ssh-temp/id_ed25519.pub"
+              mkdir -p "${SSH_DIR}"
+              PRIVATE_KEY_FILE="${SSH_DIR}/${PRIVATE_KEY_NAME}"
+              PUBLIC_KEY_FILE="${SSH_DIR}/${PUBLIC_KEY_NAME}"
 
               echo "Generating SSH key pair..."
 
@@ -71,35 +79,13 @@ stages:
                 -t ed25519 \
                 -N "" \
                 -f "${PRIVATE_KEY_FILE}" \
-                -C "${SSH_KEY_NAME}"
-
-              # echo "Uploading private key to AWS Secrets Manager..."
-              # aws sts get-caller-identity
-              # set -euo pipefail
-              # aws secretsmanager create-secret \
-              #   --name "${SSH_KEY_NAME}-private-key" \
-              #   --secret-string "file://${PRIVATE_KEY_FILE}" \
-              #   || aws secretsmanager put-secret-value \
-              #     --secret-id "${SSH_KEY_NAME}-private-key" \
-              #     --secret-string "file://${PRIVATE_KEY_FILE}"
-
-              # echo "Uploading public key to AWS Secrets Manager..."
-
-              # aws secretsmanager create-secret \
-              #   --name "${SSH_KEY_NAME}-public-key" \
-              #   --secret-string "file://${PUBLIC_KEY_FILE}" \
-              #   || aws secretsmanager put-secret-value \
-              #     --secret-id "${SSH_KEY_NAME}-public-key" \
-              #     --secret-string "file://${PUBLIC_KEY_FILE}"
-
-              # echo "Cleaning up local key files..."
-
-              # rm -rf .ssh-temp
-
-              # echo "SSH keys uploaded successfully."
+                -C "${SSH_KEYGEN_COMMENT}"
             env:
-              SSH_KEY_NAME: ${{ parameters.sshKeyName }}
-            displayName: Generate and upload SSH keys
+              SSH_KEYGEN_COMMENT: ${{ parameters.sshKeygenComment }}
+              SSH_DIR: ${{ parameters.sshDir }}
+              PRIVATE_KEY_NAME: ${{ parameters.privateKeyName }}
+              PUBLIC_KEY_NAME: ${{ parameters.publicKeyName }}
+            displayName: Generate SSH keys
 
           - bash: |
               aws sts get-caller-identity
@@ -107,12 +93,11 @@ stages:
               AWS_ACCESS_KEY_ID: ${{ parameters.awsAccessKeyId }}
               AWS_SECRET_ACCESS_KEY: ${{ parameters.awsSecretAccessKey }}
               AWS_REGION: ${{ parameters.awsRegion }}
-              SSH_KEY_NAME: ${{ parameters.sshKeyName }}
             displayName: Verify AWS Credentials
 
           - bash: |
-              PRIVATE_KEY_FILE=".ssh-temp/id_ed25519"
-              PUBLIC_KEY_FILE=".ssh-temp/id_ed25519.pub"
+              PRIVATE_KEY_FILE="${SSH_DIR}/${PRIVATE_KEY_NAME}"
+              PUBLIC_KEY_FILE="${SSH_DIR}/${PUBLIC_KEY_NAME}"
 
               echo "Uploading private key to AWS Secrets Manager..."
               aws secretsmanager create-secret \
@@ -132,17 +117,23 @@ stages:
                   --secret-string "file://${PUBLIC_KEY_FILE}"
 
               echo "Cleaning up local key files..."
-              rm -rf .ssh-temp
+              rm -rf "${SSH_DIR}"
               echo "SSH keys uploaded successfully."
             env:
+              SSH_DIR: ${{ parameters.sshDir }}
+              PRIVATE_KEY_NAME: ${{ parameters.privateKeyName }}
+              PUBLIC_KEY_NAME: ${{ parameters.publicKeyName }}
               AWS_ACCESS_KEY_ID: ${{ parameters.awsAccessKeyId }}
               AWS_SECRET_ACCESS_KEY: ${{ parameters.awsSecretAccessKey }}
               AWS_REGION: ${{ parameters.awsRegion }}
-              SSH_KEY_NAME: ${{ parameters.sshKeyName }}
+              AWS_SM_PRIVATE_KEY_NAME: ${{ parameters.sshKeygenComment }}-private-key
+              AWS_SM_PUBLIC_KEY_NAME: ${{ parameters.sshKeygenComment }}-public-key
             displayName: Upload SSH keys to AWS Secrets Manager
 
           - bash: |
-              echo "##vso[build.addbuildtag]${SSH_KEY_NAME}"
+              echo "##vso[build.addbuildtag]${AWS_SM_PRIVATE_KEY_NAME}"
+              echo "##vso[build.addbuildtag]${AWS_SM_PUBLIC_KEY_NAME}"
             env:
-              SSH_KEY_NAME: ${{ parameters.sshKeyName }}
+              AWS_SM_PRIVATE_KEY_NAME: ${{ parameters.sshKeygenComment }}-private-key
+              AWS_SM_PUBLIC_KEY_NAME: ${{ parameters.sshKeygenComment }}-public-key
             displayName: Add pipeline tags
