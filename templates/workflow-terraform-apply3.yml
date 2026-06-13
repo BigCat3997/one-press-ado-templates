@@ -34,6 +34,16 @@ parameters:
   #   type: boolean
   #   default: false
 
+  - name: orgServiceUrl
+    displayName: Azure DevOps organization URL
+    type: string
+    default: ""
+
+  - name: personalAccessToken
+    displayName: Azure DevOps Personal Access Token
+    type: string
+    default: ""
+
 stages:
   - stage: Plan
     displayName: Plan
@@ -92,6 +102,8 @@ stages:
             env:
               TF_DIR: ${{ parameters.tfWorkDir }}
               TF_VARS_FILE: ${{ parameters.tfVarsFile }}
+              AZDO_ORG_SERVICE_URL: ${{ parameters.orgServiceUrl }}
+              AZDO_PERSONAL_ACCESS_TOKEN: ${{ parameters.personalAccessToken }}
             displayName: Terraform plan
 
   - stage: Checkov
@@ -204,4 +216,6 @@ stages:
             env:
               TF_DIR: ${{ parameters.tfWorkDir }}
               TF_VARS_FILE: ${{ parameters.tfVarsFile }}
+              AZDO_ORG_SERVICE_URL: ${{ parameters.orgServiceUrl }}
+              AZDO_PERSONAL_ACCESS_TOKEN: ${{ parameters.personalAccessToken }}
             displayName: Terraform apply
