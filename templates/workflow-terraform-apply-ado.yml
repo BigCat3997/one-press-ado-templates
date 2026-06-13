@@ -42,7 +42,6 @@ parameters:
   - name: personalAccessToken
     displayName: Azure DevOps Personal Access Token
     type: string
-    default: ""
 
 stages:
   - stage: Plan
