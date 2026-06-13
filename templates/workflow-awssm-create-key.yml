@@ -140,3 +140,9 @@ stages:
               AWS_REGION: ${{ parameters.awsRegion }}
               SSH_KEY_NAME: ${{ parameters.sshKeyName }}
             displayName: Upload SSH keys to AWS Secrets Manager
+
+          - bash: |
+              echo "##vso[build.addbuildtag]${SSH_KEY_NAME}"
+            env:
+              SSH_KEY_NAME: ${{ parameters.sshKeyName }}
+            displayName: Add pipeline tags
