@@ -37,13 +37,21 @@ parameters:
     type: string
     default: ".ssh-temp"
 
+  - name: keyType
+    displayName: SSH Key Type
+    type: string
+    default: ed25519
+    values:
+      - ed25519
+      - rsa
+
   - name: privateKeyName
     type: string
-    default: "ed25519"
+    default: "id_key"
 
   - name: publicKeyName
     type: string
-    default: "ed25519.pub"
+    default: "id_key.pub"
 
   - name: awsAccessKeyId
     displayName: AWS Access Key ID for terraform backend
@@ -73,14 +81,26 @@ stages:
               PRIVATE_KEY_FILE="${SSH_DIR}/${PRIVATE_KEY_NAME}"
               PUBLIC_KEY_FILE="${SSH_DIR}/${PUBLIC_KEY_NAME}"
 
-              echo "Generating SSH key pair..."
+              echo "Generating SSH key pair (type: ${KEY_TYPE})..."
 
-              ssh-keygen \
-                -t ed25519 \
-                -N "" \
-                -f "${PRIVATE_KEY_FILE}" \
-                -C "${SSH_KEYGEN_COMMENT}"
+              if [ "${KEY_TYPE}" = "rsa" ]; then
+                ssh-keygen \
+                  -t rsa \
+                  -b 4096 \
+                  -N "" \
+                  -f "${PRIVATE_KEY_FILE}" \
+                  -C "${SSH_KEYGEN_COMMENT}"
+              else
+                ssh-keygen \
+                  -t ed25519 \
+                  -N "" \
+                  -f "${PRIVATE_KEY_FILE}" \
+                  -C "${SSH_KEYGEN_COMMENT}"
+              fi
+
+              echo "Key type generated: $(ssh-keygen -l -f ${PUBLIC_KEY_FILE})"
             env:
+              KEY_TYPE: ${{ parameters.keyType }}
               SSH_KEYGEN_COMMENT: ${{ parameters.sshKeygenComment }}
               SSH_DIR: ${{ parameters.sshDir }}
               PRIVATE_KEY_NAME: ${{ parameters.privateKeyName }}
@@ -103,14 +123,13 @@ stages:
 
               echo "Uploading private key to AWS Secrets Manager..."
               aws secretsmanager create-secret \
-                --name ${AWS_SM_PRIVATE_KEY_NAME} \
+                --name "${AWS_SM_PRIVATE_KEY_NAME}" \
                 --secret-string "file://${PRIVATE_KEY_FILE}" \
                 || aws secretsmanager put-secret-value \
-                  --secret-id ${AWS_SM_PRIVATE_KEY_NAME} \
+                  --secret-id "${AWS_SM_PRIVATE_KEY_NAME}" \
                   --secret-string "file://${PRIVATE_KEY_FILE}"
 
               echo "Uploading public key to AWS Secrets Manager..."
-
               aws secretsmanager create-secret \
                 --name "${AWS_SM_PUBLIC_KEY_NAME}" \
                 --secret-string "file://${PUBLIC_KEY_FILE}" \
