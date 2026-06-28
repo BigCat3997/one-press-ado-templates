@@ -124,6 +124,7 @@ stages:
 
           - bash: |
               set -euo pipefail
+              ls -la
               terraform -chdir="${TF_DIR}" plan \
                 -input=false \
                 -var-file="${TF_VARS_FILE}" \
