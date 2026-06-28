@@ -14,6 +14,11 @@ parameters:
     default:
       - checkout: self
 
+  - name: selfDir
+    displayName: Terraform version
+    type: string
+    default: pinwheel-aws-infra
+
   - name: terraformVersion
     displayName: Terraform version
     type: string
@@ -121,7 +126,7 @@ stages:
               terraform -chdir="${TF_DIR}" validate
             env:
               TF_DIR: ${{ parameters.tfWorkDir }}
-              TF_VARS_FILE: ${{ parameters.tfVarsFile }}
+              # TF_VARS_FILE: ${{ parameters.tfVarsFile }}
               TF_STATE_BUCKET: ${{ parameters.backendAWSBucket }}
               TF_BACKEND_KEY: ${{ parameters.backendAWSKey }}
               TF_BACKEND_REGION: ${{ parameters.backendAWSRegion }}
@@ -138,7 +143,7 @@ stages:
                 -var-file="${TF_VARS_FILE}"
             env:
               TF_DIR: ${{ parameters.tfWorkDir }}
-              TF_VARS_FILE: ${{ parameters.tfVarsFile }}
+              TF_VARS_FILE: ${{ parameters.selfDir }}/${{ parameters.tfVarsFile }}
               AWS_ACCESS_KEY_ID: ${{ parameters.awsAccessKeyId }}
               AWS_SECRET_ACCESS_KEY: ${{ parameters.awsSecretAccessKey }}
               AWS_REGION: ${{ parameters.awsRegion }}
@@ -239,7 +244,7 @@ stages:
               -backend-config="dynamodb_table=${TF_LOCKS_TABLE}"
             env:
               TF_DIR: ${{ parameters.tfWorkDir }}
-              TF_VARS_FILE: ${{ parameters.tfVarsFile }}
+              # TF_VARS_FILE: ${{ parameters.selfDir }}/${{ parameters.tfVarsFile }}
               TF_STATE_BUCKET: ${{ parameters.backendAWSBucket }}
               TF_BACKEND_KEY: ${{ parameters.backendAWSKey }}
               TF_BACKEND_REGION: ${{ parameters.backendAWSRegion }}
@@ -256,7 +261,7 @@ stages:
                 -var-file="${TF_VARS_FILE}"
             env:
               TF_DIR: ${{ parameters.tfWorkDir }}
-              TF_VARS_FILE: ${{ parameters.tfVarsFile }}
+              TF_VARS_FILE: ${{ parameters.selfDir }}/${{ parameters.tfVarsFile }}
               AWS_ACCESS_KEY_ID: ${{ parameters.awsAccessKeyId }}
               AWS_SECRET_ACCESS_KEY: ${{ parameters.awsSecretAccessKey }}
               AWS_REGION: ${{ parameters.awsRegion }}
