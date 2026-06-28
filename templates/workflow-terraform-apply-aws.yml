@@ -138,8 +138,19 @@ stages:
 
           - bash: |
               set -euo pipefail
-              ls -la
+
+              if [[ -z "${TF_VARS_FILE}" ]]; then
+                echo "ERROR: tfVarsFile parameter is required"
+                exit 1
+              fi
+
+              if [[ ! -f "${TF_VARS_FILE}" ]]; then
+                echo "ERROR: tfVarsFile not found: ${TF_VARS_FILE}"
+                exit 1
+              fi
+
               TF_VARS_ABS="$(realpath "${TF_VARS_FILE}")"
+
               terraform -chdir="${TF_DIR}" plan \
                 -input=false \
                 -var-file="${TF_VARS_ABS}"
@@ -259,19 +270,18 @@ stages:
           - bash: |
               set -euo pipefail
 
-              # Validate tfVarsFile is provided
               if [[ -z "${TF_VARS_FILE}" ]]; then
                 echo "ERROR: tfVarsFile parameter is required"
                 exit 1
               fi
 
-              # Validate file exists
               if [[ ! -f "${TF_VARS_FILE}" ]]; then
                 echo "ERROR: tfVarsFile not found: ${TF_VARS_FILE}"
                 exit 1
               fi
 
               TF_VARS_ABS="$(realpath "${TF_VARS_FILE}")"
+
               terraform -chdir="${TF_DIR}" apply --auto-approve \
                 -input=false \
                 -var-file="${TF_VARS_ABS}"
