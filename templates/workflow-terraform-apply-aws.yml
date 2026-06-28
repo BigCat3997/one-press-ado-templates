@@ -139,9 +139,10 @@ stages:
           - bash: |
               set -euo pipefail
               ls -la
+              TF_VARS_ABS="$(realpath "${TF_VARS_FILE}")"
               terraform -chdir="${TF_DIR}" plan \
                 -input=false \
-                -var-file="${TF_VARS_FILE}"
+                -var-file="${TF_VARS_ABS}"
             env:
               TF_DIR: ${{ parameters.tfWorkDir }}
               TF_VARS_FILE: ${{ parameters.selfDir }}/${{ parameters.tfVarsFile }}
@@ -257,9 +258,10 @@ stages:
 
           - bash: |
               set -euo pipefail
+              TF_VARS_ABS="$(realpath "${TF_VARS_FILE}")"
               terraform -chdir="${TF_DIR}" apply --auto-approve \
                 -input=false \
-                -var-file="${TF_VARS_FILE}"
+                -var-file="${TF_VARS_ABS}"
             env:
               TF_DIR: ${{ parameters.tfWorkDir }}
               TF_VARS_FILE: ${{ parameters.selfDir }}/${{ parameters.tfVarsFile }}
