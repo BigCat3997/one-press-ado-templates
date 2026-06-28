@@ -17,7 +17,7 @@ parameters:
   - name: selfDir
     displayName: Terraform version
     type: string
-    default: pinwheel-aws-infra
+    default: pinwheel_aws_infra
 
   - name: terraformVersion
     displayName: Terraform version
